@@ -1,0 +1,1 @@
+# VouchWire Frontend (React + Vite)
