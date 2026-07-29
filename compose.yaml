@@ -1,0 +1,54 @@
+    services:
+    mongodb:
+        image: mongo:8.0.10
+        container_name: vouchwire-mongodb
+        command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+        ports:
+            - '127.0.0.1:27017:27017'
+        volumes:
+            - mongodb_data:/data/db
+        healthcheck:
+            test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+
+    mongo-rs-init:
+        image: mongo:8.0.10
+        container_name: vouchwire-mongo-rs-init
+        depends_on:
+            mongodb:
+                condition: service_healthy
+        volumes:
+            - ./docker/mongo/init-replica-set.sh:/init-replica-set.sh:ro
+        entrypoint: ['bash', '/init-replica-set.sh']
+        restart: 'no'
+
+    api:
+        build:
+            context: .
+            dockerfile: apps/api/Dockerfile
+            target: development
+        container_name: vouchwire-api
+        ports:
+            - '4000:4000'
+        depends_on:
+            mongo-rs-init:
+                condition: service_completed_successfully
+        environment:
+            NODE_ENV: development
+            PORT: 4000
+            MONGODB_URI: mongodb://mongodb:27017/vouchwire?replicaSet=rs0
+            MONGODB_REPLICA_SET: rs0
+            LOG_LEVEL: info
+            CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+            TRUST_PROXY: 0
+            API_BODY_LIMIT: 256kb
+        volumes:
+            - ./apps/api:/app/apps/api
+            - api_node_modules:/app/node_modules
+
+volumes:
+    mongodb_data:
+    api_node_modules:
