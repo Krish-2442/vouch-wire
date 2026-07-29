@@ -1,0 +1,7 @@
+{
+    "name": "vouchwire-workspace",
+    "private": true,
+    "workspaces": [
+        "apps/*"
+    ]
+}
