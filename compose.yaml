@@ -1,4 +1,4 @@
-    services:
+services:
     mongodb:
         image: mongo:8.0.10
         container_name: vouchwire-mongodb
@@ -45,6 +45,13 @@
             CORS_ORIGINS: http://localhost:5173,http://localhost:3000
             TRUST_PROXY: 0
             API_BODY_LIMIT: 256kb
+            JWT_ACCESS_SECRET: dev_access_secret_do_not_use_in_prod
+            JWT_REFRESH_SECRET: dev_refresh_secret_do_not_use_in_prod
+            JWT_ACCESS_EXPIRES_IN: 15m
+            JWT_REFRESH_EXPIRES_IN: 7d
+            JWT_ISSUER: vouchwire
+            JWT_AUDIENCE: vouchwire-client
+            REFRESH_COOKIE_NAME: vw_refresh
         volumes:
             - ./apps/api:/app/apps/api
             - api_node_modules:/app/node_modules
