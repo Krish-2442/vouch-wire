@@ -10,6 +10,13 @@ const envSchema = z.object({
     CORS_ORIGINS: z.string().min(1).default('http://localhost:5173'),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     API_BODY_LIMIT: z.string().min(1).default('256kb'),
+    JWT_ACCESS_SECRET: z.string().min(32),
+    JWT_REFRESH_SECRET: z.string().min(32),
+    JWT_ACCESS_EXPIRES_IN: z.string().min(1).default('15m'),
+    JWT_REFRESH_EXPIRES_IN: z.string().min(1).default('7d'),
+    JWT_ISSUER: z.string().min(1).default('vouchwire'),
+    JWT_AUDIENCE: z.string().min(1).default('vouchwire-client'),
+    REFRESH_COOKIE_NAME: z.string().min(1).default('vw_refresh'),
 });
 
 const parseResult = envSchema.safeParse(process.env);

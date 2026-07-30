@@ -2,7 +2,7 @@
 
 **VouchWire** is an audit-ready contract-to-cash workspace. This backend serves the API layer built with Node.js, Express.js, and MongoDB.
 
-## Current Scope — Chunk 1
+## Current Scope — Chunk 1 & 2
 
 - Express application with Helmet, CORS, rate limiting, and structured Pino logging
 - MongoDB connection with replica-set topology validation
@@ -10,6 +10,10 @@
 - Zod-based environment validation
 - Global error handling with structured JSON envelopes
 - Docker Compose stack with single-node MongoDB replica set
+- Identity domain with User and RefreshSession models
+- JWT-based authentication (access/refresh tokens)
+- Secure, strict Refresh Token Rotation with replay detection via MongoDB transactions
+- Role-based Access Control (RBAC) middleware
 
 ## Architecture
 
@@ -87,16 +91,23 @@ The native URI (`mongodb://localhost:27017/vouchwire?replicaSet=rs0&directConnec
 
 ## Environment Variables
 
-| Variable              | Description                            | Default                 |
-| --------------------- | -------------------------------------- | ----------------------- |
-| `NODE_ENV`            | `development`, `production`, or `test` | `development`           |
-| `PORT`                | HTTP server port                       | `4000`                  |
-| `MONGODB_URI`         | MongoDB connection string              | —                       |
-| `MONGODB_REPLICA_SET` | Expected replica set name              | `rs0`                   |
-| `LOG_LEVEL`           | Pino log level                         | `info`                  |
-| `CORS_ORIGINS`        | Comma-separated allowed origins        | `http://localhost:5173` |
-| `TRUST_PROXY`         | Number of trusted proxies              | `0`                     |
-| `API_BODY_LIMIT`      | Max JSON body size                     | `256kb`                 |
+| Variable                 | Description                            | Default                 |
+| ------------------------ | -------------------------------------- | ----------------------- |
+| `NODE_ENV`               | `development`, `production`, or `test` | `development`           |
+| `PORT`                   | HTTP server port                       | `4000`                  |
+| `MONGODB_URI`            | MongoDB connection string              | —                       |
+| `MONGODB_REPLICA_SET`    | Expected replica set name              | `rs0`                   |
+| `LOG_LEVEL`              | Pino log level                         | `info`                  |
+| `CORS_ORIGINS`           | Comma-separated allowed origins        | `http://localhost:5173` |
+| `TRUST_PROXY`            | Number of trusted proxies              | `0`                     |
+| `API_BODY_LIMIT`         | Max JSON body size                     | `256kb`                 |
+| `JWT_ACCESS_SECRET`      | Secret for access tokens               | —                       |
+| `JWT_REFRESH_SECRET`     | Secret for refresh tokens              | —                       |
+| `JWT_ACCESS_EXPIRES_IN`  | Access token lifespan (e.g. 15m)       | `15m`                   |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token lifespan (e.g. 7d)       | `7d`                    |
+| `JWT_ISSUER`             | JWT Issuer claim                       | `vouchwire`             |
+| `JWT_AUDIENCE`           | JWT Audience claim                     | `vouchwire-client`      |
+| `REFRESH_COOKIE_NAME`    | Name of the refresh HttpOnly cookie    | `vw_refresh`            |
 
 ## Health Endpoints
 

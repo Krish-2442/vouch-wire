@@ -1,4 +1,36 @@
-### GET request to example server
-GET http://localhost:5000/api/health
+### System Health Live
+GET http://localhost:4000/api/v1/system/health/live
 
-###
+### System Health Ready
+GET http://localhost:4000/api/v1/system/health/ready
+
+### Auth Register
+POST http://localhost:4000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "API User",
+  "email": "user@example.com",
+  "password": "password123456",
+  "role": "CLIENT"
+}
+
+### Auth Login
+POST http://localhost:4000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "password123456"
+}
+
+### Auth Refresh
+# Note: Refresh token cookie is required (handled by the client/browser/HTTP client automatically)
+POST http://localhost:4000/api/v1/auth/refresh
+
+### Auth Current User (Replace Token)
+GET http://localhost:4000/api/v1/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTZhZTRlYjZlZDQ2MmZhY2U3MWNhNGQiLCJyb2xlIjoiQ0xJRU5UIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc4NTM5MTA3OCwiZXhwIjoxNzg1MzkxOTc4LCJhdWQiOiJ2b3VjaHdpcmUtY2xpZW50IiwiaXNzIjoidm91Y2h3aXJlIn0.u_N-SnTkCpQHkCyD0H7kvoMiVC2a_dS8hz8H7WC89eA
+
+### Auth Logout
+POST http://localhost:4000/api/v1/auth/logout

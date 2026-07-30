@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
+import cookieParser from 'cookie-parser';
 
 import env from './shared/config/env.js';
 import logger from './shared/config/logger.js';
@@ -10,6 +11,7 @@ import { requestIdMiddleware } from './shared/middlewares/request-id.middleware.
 import { notFoundMiddleware } from './shared/middlewares/not-found.middleware.js';
 import { errorHandlerMiddleware } from './shared/middlewares/error-handler.middleware.js';
 import systemRoutes from './domains/system/routes.js';
+import identityRoutes from './domains/identity/routes.js';
 
 const createApp = () => {
     const app = express();
@@ -56,7 +58,10 @@ const createApp = () => {
         }),
     );
 
+    app.use(cookieParser());
+
     app.use('/api/v1/system', systemRoutes);
+    app.use('/api/v1/auth', identityRoutes);
 
     const apiLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
