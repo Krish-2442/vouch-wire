@@ -1,19 +1,16 @@
 import { ErrorCodes } from '../errors/error-codes.js';
+import { AppError } from '../errors/app-error.js';
 
 export const authorizeRoles = (...allowedRoles) => {
     return (req, res, next) => {
         if (!req.auth || !req.auth.role) {
-            const err = new Error('Authentication required');
-            err.code = ErrorCodes.AUTHENTICATION_REQUIRED;
-            err.statusCode = 401;
-            return next(err);
+            return next(
+                new AppError(ErrorCodes.AUTHENTICATION_REQUIRED, 401, 'Authentication required'),
+            );
         }
 
         if (!allowedRoles.includes(req.auth.role)) {
-            const err = new Error('Forbidden');
-            err.code = ErrorCodes.FORBIDDEN;
-            err.statusCode = 403;
-            return next(err);
+            return next(new AppError(ErrorCodes.FORBIDDEN, 403, 'Forbidden'));
         }
 
         next();

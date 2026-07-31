@@ -51,6 +51,7 @@ const refreshSessionSchema = new mongoose.Schema(
 );
 
 refreshSessionSchema.index({ userId: 1, familyId: 1 });
+refreshSessionSchema.index({ familyId: 1, revokedAt: 1 });
 refreshSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const RefreshSession = mongoose.model('RefreshSession', refreshSessionSchema);

@@ -25,7 +25,8 @@ Content-Type: application/json
 }
 
 ### Auth Refresh
-# Note: Refresh token cookie is required (handled by the client/browser/HTTP client automatically)
+# Note: Refresh token cookie is required (handled by the client/browser/HTTP client automatically).
+# Tokens are rotated on each use. If a reused token is detected, the entire family is revoked.
 POST http://localhost:4000/api/v1/auth/refresh
 
 ### Auth Current User (Replace Token)

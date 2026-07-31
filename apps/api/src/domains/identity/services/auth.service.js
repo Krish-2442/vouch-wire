@@ -4,91 +4,88 @@ import { userRepository } from '../repositories/user.repository.js';
 import { refreshSessionRepository } from '../repositories/refresh-session.repository.js';
 import { tokenService } from './token.service.js';
 import { ErrorCodes } from '../../../shared/errors/error-codes.js';
-import env from '../../../shared/config/env.js';
-
-// Helper to parse duration string like '7d' to date
-const getExpiresAt = (expiresInStr) => {
-    const value = parseInt(expiresInStr.slice(0, -1), 10);
-    const unit = expiresInStr.slice(-1);
-    const date = new Date();
-
-    if (unit === 'd') {
-        date.setDate(date.getDate() + value);
-    } else if (unit === 'm') {
-        date.setMinutes(date.getMinutes() + value);
-    }
-    return date;
-};
+import { AppError } from '../../../shared/errors/app-error.js';
 
 export const authService = {
-    register: async (data, { userAgent, ipHash }) => {
+    register: async (data, { userAgent, ip }) => {
         const passwordHash = await argon2.hash(data.password);
+        const session = await mongoose.startSession();
+        const ipHash = ip ? tokenService.hashToken(ip) : null;
+        let result;
 
-        const user = await userRepository.create({
-            fullName: data.fullName,
-            email: data.email,
-            passwordHash,
-            role: data.role,
-        });
+        try {
+            await session.withTransaction(async () => {
+                const user = await userRepository.create(
+                    {
+                        fullName: data.fullName,
+                        email: data.email,
+                        passwordHash,
+                        role: data.role,
+                    },
+                    { session },
+                );
 
-        const jti = tokenService.generateJti();
-        const familyId = tokenService.generateFamilyId();
-        const refreshToken = tokenService.generateRefreshToken(user, jti);
-        const accessToken = tokenService.generateAccessToken(user);
+                const refreshJti = tokenService.generateJti();
+                const accessJti = tokenService.generateJti();
+                const familyId = tokenService.generateFamilyId();
+                const refreshToken = tokenService.generateRefreshToken(user, refreshJti);
+                const accessToken = tokenService.generateAccessToken(user, accessJti);
 
-        await refreshSessionRepository.create({
-            userId: user._id,
-            jti,
-            familyId,
-            tokenHash: tokenService.hashToken(refreshToken),
-            expiresAt: getExpiresAt(env.JWT_REFRESH_EXPIRES_IN),
-            userAgent,
-            ipHash,
-        });
+                await refreshSessionRepository.create(
+                    {
+                        userId: user._id,
+                        jti: refreshJti,
+                        familyId,
+                        tokenHash: tokenService.hashToken(refreshToken),
+                        expiresAt: tokenService.getRefreshExpiresAt(),
+                        userAgent,
+                        ipHash,
+                    },
+                    { session },
+                );
 
-        const userObj = user.toObject();
-        delete userObj.passwordHash;
+                const userObj = user.toObject();
+                delete userObj.passwordHash;
 
-        return { user: userObj, accessToken, refreshToken };
+                result = { user: userObj, accessToken, refreshToken };
+            });
+        } finally {
+            await session.endSession();
+        }
+
+        return result;
     },
 
-    login: async (email, password, { userAgent, ipHash }) => {
+    login: async (email, password, { userAgent, ip }) => {
         const user = await userRepository.findByEmail(email);
+        const ipHash = ip ? tokenService.hashToken(ip) : null;
 
         if (!user) {
-            const err = new Error('Invalid email or password');
-            err.code = ErrorCodes.INVALID_CREDENTIALS;
-            err.statusCode = 401;
-            throw err;
+            throw new AppError(ErrorCodes.INVALID_CREDENTIALS, 401, 'Invalid email or password');
         }
 
         const isPasswordValid = await argon2.verify(user.passwordHash, password);
 
         if (!isPasswordValid) {
-            const err = new Error('Invalid email or password');
-            err.code = ErrorCodes.INVALID_CREDENTIALS;
-            err.statusCode = 401;
-            throw err;
+            throw new AppError(ErrorCodes.INVALID_CREDENTIALS, 401, 'Invalid email or password');
         }
 
         if (!user.isActive) {
-            const err = new Error('Account is inactive');
-            err.code = ErrorCodes.ACCOUNT_INACTIVE;
-            err.statusCode = 403;
-            throw err;
+            throw new AppError(ErrorCodes.ACCOUNT_INACTIVE, 403, 'Account is inactive');
         }
 
-        const jti = tokenService.generateJti();
+        const refreshJti = tokenService.generateJti();
+        const accessJti = tokenService.generateJti();
         const familyId = tokenService.generateFamilyId();
-        const refreshToken = tokenService.generateRefreshToken(user, jti);
-        const accessToken = tokenService.generateAccessToken(user);
+        const refreshToken = tokenService.generateRefreshToken(user, refreshJti);
+        const accessToken = tokenService.generateAccessToken(user, accessJti);
 
         await refreshSessionRepository.create({
             userId: user._id,
-            jti,
+            jti: refreshJti,
             familyId,
             tokenHash: tokenService.hashToken(refreshToken),
-            expiresAt: getExpiresAt(env.JWT_REFRESH_EXPIRES_IN),
+            expiresAt: tokenService.getRefreshExpiresAt(),
             userAgent,
             ipHash,
         });
@@ -99,28 +96,39 @@ export const authService = {
         return { user: userObj, accessToken, refreshToken };
     },
 
-    rotate: async (oldRefreshToken, { userAgent, ipHash }) => {
+    rotate: async (oldRefreshToken, { userAgent, ip }) => {
         const decoded = tokenService.verifyRefreshToken(oldRefreshToken);
+        const ipHash = ip ? tokenService.hashToken(ip) : null;
 
         const { jti, sub: userId } = decoded;
 
         const session = await mongoose.startSession();
         let result;
+        let replayError = null;
 
         try {
             await session.withTransaction(async () => {
                 const sessionRecord = await refreshSessionRepository.findByJti(jti, { session });
 
                 if (!sessionRecord) {
-                    const err = new Error('Refresh token session not found');
-                    err.code = ErrorCodes.INVALID_TOKEN;
-                    err.statusCode = 401;
-                    throw err;
+                    throw new AppError(
+                        ErrorCodes.INVALID_TOKEN,
+                        401,
+                        'Refresh token session not found',
+                    );
+                }
+
+                if (sessionRecord.userId.toString() !== userId) {
+                    throw new AppError(
+                        ErrorCodes.INVALID_TOKEN,
+                        401,
+                        'Refresh token session user mismatch',
+                    );
                 }
 
                 if (
                     sessionRecord.revokedAt ||
-                    sessionRecord.tokenHash !== tokenService.hashToken(oldRefreshToken)
+                    !tokenService.verifyTokenHash(oldRefreshToken, sessionRecord.tokenHash)
                 ) {
                     await refreshSessionRepository.revokeFamily(
                         sessionRecord.familyId,
@@ -128,41 +136,67 @@ export const authService = {
                         { session },
                     );
 
-                    const err = new Error('Refresh token reuse detected');
-                    err.code = ErrorCodes.REFRESH_TOKEN_REUSED;
-                    err.statusCode = 401;
-                    throw err;
+                    replayError = new AppError(
+                        ErrorCodes.REFRESH_TOKEN_REUSED,
+                        401,
+                        'Refresh token reuse detected',
+                    );
+                    return;
                 }
 
                 const user = await userRepository.findById(userId, { session });
 
-                if (!user || !user.isActive) {
-                    const err = new Error('User not found or inactive');
-                    err.code = user ? ErrorCodes.ACCOUNT_INACTIVE : ErrorCodes.INVALID_TOKEN;
-                    err.statusCode = 401;
-                    throw err;
+                if (!user) {
+                    throw new AppError(ErrorCodes.INVALID_TOKEN, 401, 'User not found');
                 }
 
-                const newJti = tokenService.generateJti();
-                const newRefreshToken = tokenService.generateRefreshToken(user, newJti);
-                const newAccessToken = tokenService.generateAccessToken(user);
+                if (!user.isActive) {
+                    throw new AppError(ErrorCodes.ACCOUNT_INACTIVE, 403, 'Account is inactive');
+                }
+
+                const claimResult = await refreshSessionRepository.revokeById(
+                    sessionRecord._id,
+                    userId,
+                    'ROTATED',
+                    null,
+                    { session },
+                );
+
+                if (claimResult.modifiedCount === 0) {
+                    await refreshSessionRepository.revokeFamily(
+                        sessionRecord.familyId,
+                        'CONCURRENT_REPLAY',
+                        { session },
+                    );
+
+                    replayError = new AppError(
+                        ErrorCodes.REFRESH_TOKEN_REUSED,
+                        401,
+                        'Refresh token already rotated',
+                    );
+                    return;
+                }
+
+                const refreshJti = tokenService.generateJti();
+                const accessJti = tokenService.generateJti();
+                const newRefreshToken = tokenService.generateRefreshToken(user, refreshJti);
+                const newAccessToken = tokenService.generateAccessToken(user, accessJti);
 
                 const newSessionRecord = await refreshSessionRepository.create(
                     {
                         userId: user._id,
-                        jti: newJti,
+                        jti: refreshJti,
                         familyId: sessionRecord.familyId,
                         tokenHash: tokenService.hashToken(newRefreshToken),
-                        expiresAt: getExpiresAt(env.JWT_REFRESH_EXPIRES_IN),
+                        expiresAt: tokenService.getRefreshExpiresAt(),
                         userAgent,
                         ipHash,
                     },
                     { session },
                 );
 
-                await refreshSessionRepository.revokeById(
+                await refreshSessionRepository.updateReplacedBy(
                     sessionRecord._id,
-                    'ROTATED',
                     newSessionRecord._id,
                     { session },
                 );
@@ -180,19 +214,37 @@ export const authService = {
             await session.endSession();
         }
 
+        if (replayError) {
+            throw replayError;
+        }
+
         return result;
     },
 
     logout: async (refreshToken) => {
+        let decoded;
         try {
-            const decoded = tokenService.verifyRefreshToken(refreshToken);
-            const sessionRecord = await refreshSessionRepository.findByJti(decoded.jti);
-
-            if (sessionRecord && !sessionRecord.revokedAt) {
-                await refreshSessionRepository.revokeById(sessionRecord._id, 'LOGGED_OUT', null);
-            }
+            decoded = tokenService.verifyRefreshToken(refreshToken);
         } catch {
-            // Ignore errors during logout (e.g. invalid token or expired token)
+            return;
         }
+
+        const { jti, sub: userId } = decoded;
+
+        const sessionRecord = await refreshSessionRepository.findByJti(jti);
+
+        if (!sessionRecord || sessionRecord.revokedAt) {
+            return;
+        }
+
+        if (sessionRecord.userId.toString() !== userId) {
+            return;
+        }
+
+        if (!tokenService.verifyTokenHash(refreshToken, sessionRecord.tokenHash)) {
+            return;
+        }
+
+        await refreshSessionRepository.revokeById(sessionRecord._id, userId, 'LOGGED_OUT', null);
     },
 };

@@ -9,7 +9,7 @@
         "lint": "eslint .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "MONGODB_URI=\"mongodb://localhost:27017/vouchwire-test?replicaSet=rs0&directConnection=true\" NODE_ENV=test vitest run"
+        "test": "cross-env MONGODB_URI=\"mongodb://localhost:27017/vouchwire-test?replicaSet=rs0&directConnection=true\" NODE_ENV=test JWT_ACCESS_SECRET=\"test_access_secret_do_not_use_in_prod\" JWT_REFRESH_SECRET=\"test_refresh_secret_do_not_use_in_prod\" vitest run"
     },
     "keywords": [],
     "author": "",
@@ -30,6 +30,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.28.0",
+        "cross-env": "^7.0.3",
         "eslint": "^9.28.0",
         "globals": "^16.2.0",
         "prettier": "^3.5.3",

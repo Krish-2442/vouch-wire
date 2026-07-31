@@ -1,9 +1,9 @@
 import { User } from '../models/user.model.js';
 
 export const userRepository = {
-    create: async (userData) => {
-        const user = new User(userData);
-        return user.save();
+    create: async (userData, options = {}) => {
+        const [user] = await User.create([userData], options);
+        return user;
     },
 
     findByEmail: async (email, options = {}) => {

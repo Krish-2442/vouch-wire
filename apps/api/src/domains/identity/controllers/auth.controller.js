@@ -1,36 +1,23 @@
-import crypto from 'crypto';
 import { authService } from '../services/auth.service.js';
+import { tokenService } from '../services/token.service.js';
 import env from '../../../shared/config/env.js';
 import { successResponse } from '../../../shared/utils/api-response.js';
 import { ErrorCodes } from '../../../shared/errors/error-codes.js';
-
-// Helper to convert '7d' etc to milliseconds
-const getMaxAgeMs = (expiresInStr) => {
-    const value = parseInt(expiresInStr.slice(0, -1), 10);
-    const unit = expiresInStr.slice(-1);
-
-    if (unit === 'd') {
-        return value * 24 * 60 * 60 * 1000;
-    } else if (unit === 'm') {
-        return value * 60 * 1000;
-    }
-    return 7 * 24 * 60 * 60 * 1000; // fallback to 7 days
-};
+import { AppError } from '../../../shared/errors/app-error.js';
 
 const getCookieOptions = () => ({
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/api/v1/auth',
-    maxAge: getMaxAgeMs(env.JWT_REFRESH_EXPIRES_IN),
+    maxAge: tokenService.getRefreshMaxAgeMs(),
 });
 
 const getClientInfo = (req) => {
     const userAgent = req.headers['user-agent'] || null;
-    const ip = req.ip || req.connection.remoteAddress;
-    const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex') : null;
+    const ip = req.ip || req.connection?.remoteAddress || null;
 
-    return { userAgent, ipHash };
+    return { userAgent, ip };
 };
 
 export const authController = {
@@ -71,10 +58,11 @@ export const authController = {
             const oldRefreshToken = req.cookies[env.REFRESH_COOKIE_NAME];
 
             if (!oldRefreshToken) {
-                const err = new Error('Refresh token is required');
-                err.code = ErrorCodes.AUTHENTICATION_REQUIRED;
-                err.statusCode = 401;
-                throw err;
+                throw new AppError(
+                    ErrorCodes.AUTHENTICATION_REQUIRED,
+                    401,
+                    'Refresh token is required',
+                );
             }
 
             try {
@@ -87,7 +75,6 @@ export const authController = {
 
                 return successResponse(res, { data: { user, accessToken } });
             } catch (error) {
-                // Clear cookie on any rotation failure (including replay detection)
                 res.clearCookie(env.REFRESH_COOKIE_NAME, {
                     ...getCookieOptions(),
                     maxAge: 0,

@@ -139,3 +139,11 @@ npm test
 
 - The local single-node `rs0` replica set supports local transaction development only. It is **not** production high availability.
 - `node_modules/` is excluded from Git and Docker builds.
+
+## Authentication & Testing
+
+- **Token Rotation**: Refresh tokens are securely rotated on each use.
+- **Replay Revocation**: A replay attack (using an already rotated token) revokes the entire token family.
+- **Cookie Behavior**: The refresh token is set in an `HttpOnly` cookie (`vw_refresh`). It requires `Secure` in production and clears on logout or rotation failure.
+- **Test Database Behavior**: Auth integration tests explicitly connect to a dedicated test database (`vouchwire-test`) which cleans up collections between tests.
+- **Health Checks**: Health tests run without connecting to the database.

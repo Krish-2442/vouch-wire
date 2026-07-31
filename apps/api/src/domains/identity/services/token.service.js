@@ -2,13 +2,26 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import env from '../../../shared/config/env.js';
 import { ErrorCodes } from '../../../shared/errors/error-codes.js';
+import { AppError } from '../../../shared/errors/app-error.js';
+
+const parseDurationToMs = (expiresInStr) => {
+    const value = parseInt(expiresInStr.slice(0, -1), 10);
+    const unit = expiresInStr.slice(-1);
+
+    if (unit === 'd') return value * 24 * 60 * 60 * 1000;
+    if (unit === 'h') return value * 60 * 60 * 1000;
+    if (unit === 'm') return value * 60 * 1000;
+    if (unit === 's') return value * 1000;
+    return 0;
+};
 
 export const tokenService = {
-    generateAccessToken: (user) => {
+    generateAccessToken: (user, jti) => {
         const payload = {
             sub: user._id.toString(),
             role: user.role,
             type: 'access',
+            jti,
         };
 
         return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
@@ -41,18 +54,13 @@ export const tokenService = {
             });
 
             if (decoded.type !== 'access') {
-                const err = new Error('Invalid token type');
-                err.code = ErrorCodes.INVALID_TOKEN;
-                err.statusCode = 401;
-                throw err;
+                throw new AppError(ErrorCodes.INVALID_TOKEN, 401, 'Invalid token type');
             }
 
             return decoded;
         } catch (error) {
-            const err = new Error(error.message);
-            err.code = ErrorCodes.INVALID_TOKEN;
-            err.statusCode = 401;
-            throw err;
+            if (error instanceof AppError) throw error;
+            throw new AppError(ErrorCodes.INVALID_TOKEN, 401, error.message);
         }
     },
 
@@ -64,23 +72,24 @@ export const tokenService = {
             });
 
             if (decoded.type !== 'refresh') {
-                const err = new Error('Invalid token type');
-                err.code = ErrorCodes.INVALID_TOKEN;
-                err.statusCode = 401;
-                throw err;
+                throw new AppError(ErrorCodes.INVALID_TOKEN, 401, 'Invalid token type');
             }
 
             return decoded;
         } catch (error) {
-            const err = new Error(error.message);
-            err.code = ErrorCodes.INVALID_TOKEN;
-            err.statusCode = 401;
-            throw err;
+            if (error instanceof AppError) throw error;
+            throw new AppError(ErrorCodes.INVALID_TOKEN, 401, error.message);
         }
     },
 
     hashToken: (token) => {
         return crypto.createHash('sha256').update(token).digest('hex');
+    },
+
+    verifyTokenHash: (token, storedHash) => {
+        const computedHash = tokenService.hashToken(token);
+        if (computedHash.length !== storedHash.length) return false;
+        return crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(storedHash));
     },
 
     generateJti: () => {
@@ -89,5 +98,13 @@ export const tokenService = {
 
     generateFamilyId: () => {
         return crypto.randomUUID();
+    },
+
+    getRefreshMaxAgeMs: () => {
+        return parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN);
+    },
+
+    getRefreshExpiresAt: () => {
+        return new Date(Date.now() + tokenService.getRefreshMaxAgeMs());
     },
 };

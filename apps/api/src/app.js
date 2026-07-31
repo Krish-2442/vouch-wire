@@ -12,6 +12,8 @@ import { notFoundMiddleware } from './shared/middlewares/not-found.middleware.js
 import { errorHandlerMiddleware } from './shared/middlewares/error-handler.middleware.js';
 import systemRoutes from './domains/system/routes.js';
 import identityRoutes from './domains/identity/routes.js';
+import { ErrorCodes } from './shared/errors/error-codes.js';
+import { AppError } from './shared/errors/app-error.js';
 
 const createApp = () => {
     const app = express();
@@ -27,7 +29,7 @@ const createApp = () => {
                 if (!origin || allowedOrigins.includes(origin)) {
                     return callback(null, true);
                 }
-                return callback(new Error('Not allowed by CORS'));
+                return callback(new AppError(ErrorCodes.FORBIDDEN, 403, 'Not allowed by CORS'));
             },
             credentials: true,
         }),
@@ -60,17 +62,20 @@ const createApp = () => {
 
     app.use(cookieParser());
 
-    app.use('/api/v1/system', systemRoutes);
-    app.use('/api/v1/auth', identityRoutes);
-
     const apiLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
         max: 100,
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req) => req.path.startsWith('/api/v1/system/health'),
+        skip: (req) => req.originalUrl.startsWith('/api/v1/system/health'),
+        handler: (req, res, next, options) => {
+            next(new AppError(ErrorCodes.RATE_LIMIT_EXCEEDED, options.statusCode, options.message));
+        },
     });
     app.use('/api', apiLimiter);
+
+    app.use('/api/v1/system', systemRoutes);
+    app.use('/api/v1/auth', identityRoutes);
 
     app.use(notFoundMiddleware);
     app.use(errorHandlerMiddleware);
