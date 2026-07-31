@@ -14,12 +14,11 @@ export const errorHandlerMiddleware = (err, req, res, _next) => {
 
     if (err.name === 'MongoServerError' && err.code === 11000) {
         statusCode = 409;
-        code = ErrorCodes.EMAIL_ALREADY_EXISTS; // Or generic CONFLICT, but the requirements say "standardized conflict error" for duplicate email. We'll refine this if needed. Wait, let's keep it generic if we want, or specifically check if email is in the message.
-        if (err.message.includes('email')) {
+        if (err.message && err.message.includes('email')) {
             code = ErrorCodes.EMAIL_ALREADY_EXISTS;
             message = 'Email already exists';
         } else {
-            code = 'CONFLICT';
+            code = ErrorCodes.CONFLICT;
             message = 'A resource with this unique value already exists';
         }
     }
@@ -27,7 +26,6 @@ export const errorHandlerMiddleware = (err, req, res, _next) => {
     const details = err.details || [];
 
     logger.error({
-        err,
         requestId: req.id,
         method: req.method,
         url: req.originalUrl,

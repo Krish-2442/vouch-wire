@@ -22,6 +22,7 @@ FROM node:22.16-alpine AS production
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=production-deps /app/node_modules ./node_modules
+COPY package.json ./
 COPY apps/api ./apps/api
 USER appuser
 EXPOSE 4000

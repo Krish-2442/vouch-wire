@@ -1,9 +1,33 @@
+# Node.js & Dependencies
 node_modules/
+npm-debug.log
+yarn-error.log
+*.log
+
+# Environment Variables & Secrets
 .env
-.env.local
+.env.*
+!.env.example
+
+# Build, Distribution & Cache
 dist/
 build/
+.turbo/
+.vite/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# OS & IDE Metadata
 .DS_Store
-
+.AppleDouble
+.LSOverride
+__MACOSX/
 .idea/
-
+.vscode/
+*.suo
+*.ntvs
+*.njsproj
+*.sln
+*.sw?

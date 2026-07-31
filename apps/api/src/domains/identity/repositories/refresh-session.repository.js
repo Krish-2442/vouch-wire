@@ -23,15 +23,25 @@ export const refreshSessionRepository = {
         );
     },
 
-    revokeById: async (sessionId, reason, replacedBySessionId, options = {}) => {
+    revokeById: async (sessionId, userId, reason, replacedBySessionId, options = {}) => {
         return RefreshSession.updateOne(
-            { _id: sessionId },
+            { _id: sessionId, userId, revokedAt: null },
             {
                 $set: {
                     revokedAt: new Date(),
                     revokedReason: reason,
                     replacedBySessionId,
                 },
+            },
+            options,
+        );
+    },
+
+    updateReplacedBy: async (sessionId, replacedBySessionId, options = {}) => {
+        return RefreshSession.updateOne(
+            { _id: sessionId },
+            {
+                $set: { replacedBySessionId },
             },
             options,
         );
