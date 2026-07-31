@@ -12,6 +12,7 @@ import { notFoundMiddleware } from './shared/middlewares/not-found.middleware.js
 import { errorHandlerMiddleware } from './shared/middlewares/error-handler.middleware.js';
 import systemRoutes from './domains/system/routes.js';
 import identityRoutes from './domains/identity/routes.js';
+import workspaceRoutes from './domains/workspaces/routes.js';
 import { ErrorCodes } from './shared/errors/error-codes.js';
 import { AppError } from './shared/errors/app-error.js';
 
@@ -76,6 +77,7 @@ const createApp = () => {
 
     app.use('/api/v1/system', systemRoutes);
     app.use('/api/v1/auth', identityRoutes);
+    app.use('/api/v1/workspaces', workspaceRoutes);
 
     app.use(notFoundMiddleware);
     app.use(errorHandlerMiddleware);
