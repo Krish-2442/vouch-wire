@@ -26,6 +26,7 @@
         "mongoose": "^9.8.1",
         "pino": "^9.6.0",
         "pino-http": "^10.4.0",
+        "slugify": "^1.6.9",
         "zod": "^3.25.67"
     },
     "devDependencies": {
