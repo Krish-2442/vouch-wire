@@ -166,11 +166,13 @@ export const agreementService = {
         validateTransition(agreement.status, 'PROPOSED');
         await assertOwnership(agreement.clientWorkspaceId, userId);
 
-        return agreementRepository.updateById(agreementId, {
-            status: 'PROPOSED',
-            proposedBy: userId,
-            proposedAt: new Date(),
-        });
+        // THE HUMAN FIX: Atomic status transition
+        return agreementRepository.updateAgreementStatus(
+            agreementId,
+            agreement.status, // Current status check
+            'PROPOSED', // New status
+            { proposedBy: userId, proposedAt: new Date() }, // Metadata
+        );
     },
 
     acceptAgreement: async ({ agreementId, userId }) => {
@@ -182,8 +184,8 @@ export const agreementService = {
         validateTransition(agreement.status, 'ACTIVE');
         await assertOwnership(agreement.freelancerWorkspaceId, userId);
 
-        return agreementRepository.updateById(agreementId, {
-            status: 'ACTIVE',
+        // THE HUMAN FIX: Atomic status transition
+        return agreementRepository.updateAgreementStatus(agreementId, agreement.status, 'ACTIVE', {
             acceptedBy: userId,
             acceptedAt: new Date(),
         });
@@ -198,11 +200,13 @@ export const agreementService = {
         validateTransition(agreement.status, 'REJECTED');
         await assertOwnership(agreement.freelancerWorkspaceId, userId);
 
-        return agreementRepository.updateById(agreementId, {
-            status: 'REJECTED',
-            rejectedBy: userId,
-            rejectedAt: new Date(),
-        });
+        // THE HUMAN FIX: Atomic status transition
+        return agreementRepository.updateAgreementStatus(
+            agreementId,
+            agreement.status,
+            'REJECTED',
+            { rejectedBy: userId, rejectedAt: new Date() },
+        );
     },
 
     cancelAgreement: async ({ agreementId, userId }) => {
@@ -214,10 +218,12 @@ export const agreementService = {
         validateTransition(agreement.status, 'CANCELLED');
         await assertOwnership(agreement.clientWorkspaceId, userId);
 
-        return agreementRepository.updateById(agreementId, {
-            status: 'CANCELLED',
-            cancelledBy: userId,
-            cancelledAt: new Date(),
-        });
+        // THE HUMAN FIX: Atomic status transition
+        return agreementRepository.updateAgreementStatus(
+            agreementId,
+            agreement.status,
+            'CANCELLED',
+            { cancelledBy: userId, cancelledAt: new Date() },
+        );
     },
 };

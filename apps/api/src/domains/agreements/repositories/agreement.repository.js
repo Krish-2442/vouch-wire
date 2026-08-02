@@ -22,4 +22,12 @@ export const agreementRepository = {
     updateById: async (id, data) => {
         return Agreement.findByIdAndUpdate(id, data, { new: true }).exec();
     },
+
+    updateAgreementStatus: async (agreementId, currentStatus, newStatus, metadata = {}) => {
+        return Agreement.findOneAndUpdate(
+            { _id: agreementId, status: currentStatus },
+            { status: newStatus, ...metadata },
+            { new: true },
+        ).exec();
+    },
 };

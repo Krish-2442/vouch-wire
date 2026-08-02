@@ -13,12 +13,12 @@ const registerAndLogin = async (email, role) => {
         password: 'password123456',
         role,
     });
-    
+
     const loginRes = await request(app).post('/api/v1/auth/login').send({
         email,
         password: 'password123456',
     });
-    
+
     return loginRes.body.data.accessToken;
 };
 
@@ -38,14 +38,14 @@ describe('Agreements Endpoints', () => {
             .post('/api/v1/workspaces')
             .set('Authorization', `Bearer ${clientToken}`)
             .send({ name: 'Acme Corp' });
-            
+
         clientWorkspace = cws.body.data.workspace;
 
         const fws = await request(app)
             .post('/api/v1/workspaces')
             .set('Authorization', `Bearer ${freelancerToken}`)
             .send({ name: 'Jane Dev Studio' });
-            
+
         freelancerWorkspace = fws.body.data.workspace;
     });
 
@@ -65,7 +65,7 @@ describe('Agreements Endpoints', () => {
             .post('/api/v1/agreements')
             .set('Authorization', `Bearer ${clientToken}`)
             .send(body());
-            
+
         return res.body.data._id;
     };
 
@@ -188,7 +188,7 @@ describe('Agreements Endpoints', () => {
             const proposeRes = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/propose`)
                 .set('Authorization', `Bearer ${clientToken}`);
-                
+
             expect(proposeRes.status).toBe(200);
             expect(proposeRes.body.data.status).toBe('PROPOSED');
             expect(proposeRes.body.data.proposedBy).toBeDefined();
@@ -196,7 +196,7 @@ describe('Agreements Endpoints', () => {
             const acceptRes = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/accept`)
                 .set('Authorization', `Bearer ${freelancerToken}`);
-                
+
             expect(acceptRes.status).toBe(200);
             expect(acceptRes.body.data.status).toBe('ACTIVE');
             expect(acceptRes.body.data.acceptedBy).toBeDefined();
@@ -212,7 +212,7 @@ describe('Agreements Endpoints', () => {
             const rejectRes = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/reject`)
                 .set('Authorization', `Bearer ${freelancerToken}`);
-                
+
             expect(rejectRes.status).toBe(200);
             expect(rejectRes.body.data.status).toBe('REJECTED');
         });
@@ -223,7 +223,7 @@ describe('Agreements Endpoints', () => {
             const cancelRes = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/cancel`)
                 .set('Authorization', `Bearer ${clientToken}`);
-                
+
             expect(cancelRes.status).toBe(200);
             expect(cancelRes.body.data.status).toBe('CANCELLED');
         });
@@ -234,7 +234,7 @@ describe('Agreements Endpoints', () => {
             const res = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/accept`)
                 .set('Authorization', `Bearer ${freelancerToken}`);
-                
+
             expect(res.status).toBe(409);
             expect(res.body.error.code).toBe('INVALID_AGREEMENT_TRANSITION');
         });
@@ -245,7 +245,7 @@ describe('Agreements Endpoints', () => {
             await request(app)
                 .post(`/api/v1/agreements/${agreementId}/propose`)
                 .set('Authorization', `Bearer ${clientToken}`);
-                
+
             await request(app)
                 .post(`/api/v1/agreements/${agreementId}/accept`)
                 .set('Authorization', `Bearer ${freelancerToken}`);
@@ -253,7 +253,7 @@ describe('Agreements Endpoints', () => {
             const cancelRes = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/cancel`)
                 .set('Authorization', `Bearer ${clientToken}`);
-                
+
             expect(cancelRes.status).toBe(409);
             expect(cancelRes.body.error.code).toBe('INVALID_AGREEMENT_TRANSITION');
         });
@@ -266,7 +266,7 @@ describe('Agreements Endpoints', () => {
             const res = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/propose`)
                 .set('Authorization', `Bearer ${freelancerToken}`);
-                
+
             expect(res.status).toBe(403);
         });
 
@@ -280,7 +280,7 @@ describe('Agreements Endpoints', () => {
             const res = await request(app)
                 .post(`/api/v1/agreements/${agreementId}/accept`)
                 .set('Authorization', `Bearer ${clientToken}`);
-                
+
             expect(res.status).toBe(403);
         });
 

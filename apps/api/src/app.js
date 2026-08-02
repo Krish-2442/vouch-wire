@@ -69,7 +69,8 @@ const createApp = () => {
         max: 100,
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req) => env.NODE_ENV === 'test' || req.originalUrl.startsWith('/api/v1/system/health'),
+        skip: (req) =>
+            env.NODE_ENV === 'test' || req.originalUrl.startsWith('/api/v1/system/health'),
         handler: (req, res, next, options) => {
             next(new AppError(ErrorCodes.RATE_LIMIT_EXCEEDED, options.statusCode, options.message));
         },
