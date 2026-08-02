@@ -147,3 +147,10 @@ npm test
 - **Cookie Behavior**: The refresh token is set in an `HttpOnly` cookie (`vw_refresh`). It requires `Secure` in production and clears on logout or rotation failure.
 - **Test Database Behavior**: Auth integration tests explicitly connect to a dedicated test database (`vouchwire-test`) which cleans up collections between tests.
 - **Health Checks**: Health tests run without connecting to the database.
+
+## Workspaces (Chunk 4)
+
+- **Creation**: Workspaces can only be created by `CLIENT` or `FREELANCER` roles (not `ADMIN`). Creating a workspace atomically creates the workspace and the initial `OWNER` membership in a MongoDB transaction.
+- **Roles**: Memberships are strictly `OWNER` or `MEMBER`. Owners can update workspace names and manage members.
+- **RBAC**: Access to endpoints under `/api/v1/workspaces/:workspaceId` is protected by `workspaceAccess(allowedRoles)` middleware.
+- **Isolation**: Users cannot see or enumerate workspaces they do not belong to (returns a safe 404).

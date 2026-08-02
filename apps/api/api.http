@@ -35,3 +35,46 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTZhZTRlY
 
 ### Auth Logout
 POST http://localhost:4000/api/v1/auth/logout
+
+### Workspaces - Create
+POST http://localhost:4000/api/v1/workspaces
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "name": "My Workspace"
+}
+
+### Workspaces - List
+GET http://localhost:4000/api/v1/workspaces
+Authorization: Bearer <your_token>
+
+### Workspaces - Get By ID
+GET http://localhost:4000/api/v1/workspaces/<workspace_id>
+Authorization: Bearer <your_token>
+
+### Workspaces - Update
+PATCH http://localhost:4000/api/v1/workspaces/<workspace_id>
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "name": "Updated Workspace Name"
+}
+
+### Workspaces - List Members
+GET http://localhost:4000/api/v1/workspaces/<workspace_id>/members
+Authorization: Bearer <your_token>
+
+### Workspaces - Add Member
+POST http://localhost:4000/api/v1/workspaces/<workspace_id>/members
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Workspaces - Remove Member
+DELETE http://localhost:4000/api/v1/workspaces/<workspace_id>/members/<membership_id>
+Authorization: Bearer <your_token>
