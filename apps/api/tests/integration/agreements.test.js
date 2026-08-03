@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { describe, it, expect, beforeEach } from 'vitest';
+import mongoose from 'mongoose';
 import createApp from '../../src/app.js';
 import { setupTestDatabase } from '../helpers/database-lifecycle.helper.js';
 
@@ -179,6 +180,18 @@ describe('Agreements Endpoints', () => {
             expect(res.status).toBe(200);
             expect(res.body.data.title).toBe('Updated Title');
         });
+
+        it('should reject partial update making endDate earlier than startDate', async () => {
+            const agreementId = await createDraftAgreement();
+
+            const res = await request(app)
+                .patch(`/api/v1/agreements/${agreementId}`)
+                .set('Authorization', `Bearer ${clientToken}`)
+                .send({ endDate: '2026-08-01' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.error.code).toBe('VALIDATION_ERROR');
+        });
     });
 
     describe('State Transitions', () => {
@@ -256,6 +269,40 @@ describe('Agreements Endpoints', () => {
 
             expect(cancelRes.status).toBe(409);
             expect(cancelRes.body.error.code).toBe('INVALID_AGREEMENT_TRANSITION');
+        });
+
+        it('should return 409 when atomic transition loses a race', async () => {
+            const agreementId = await createDraftAgreement();
+
+            // Transition behind the scenes to PROPOSED
+            const Agreement = mongoose.model('Agreement');
+            await Agreement.findByIdAndUpdate(agreementId, { status: 'PROPOSED' });
+
+            // Try to propose (expects DRAFT, but it is now PROPOSED)
+            const res = await request(app)
+                .post(`/api/v1/agreements/${agreementId}/propose`)
+                .set('Authorization', `Bearer ${clientToken}`);
+
+            expect(res.status).toBe(409);
+            expect(res.body.error.code).toBe('INVALID_AGREEMENT_TRANSITION');
+        });
+
+        it('should never return HTTP 200 with data: null after a transition conflict', async () => {
+            const agreementId = await createDraftAgreement();
+
+            // Transition behind the scenes to CANCELLED
+            const Agreement = mongoose.model('Agreement');
+            await Agreement.findByIdAndUpdate(agreementId, { status: 'CANCELLED' });
+
+            // Try to propose (expects DRAFT, but it is now CANCELLED)
+            const res = await request(app)
+                .post(`/api/v1/agreements/${agreementId}/propose`)
+                .set('Authorization', `Bearer ${clientToken}`);
+
+            expect(res.status).not.toBe(200);
+            if (res.body.data !== undefined) {
+                expect(res.body.data).not.toBeNull();
+            }
         });
     });
 

@@ -10,13 +10,9 @@ const VALID_TRANSITIONS = {
 };
 
 const assertOwnership = async (workspaceId, userId) => {
-    const access = await workspaceMembershipService.checkAccess({
-        workspaceId,
-        userId,
-        allowedRoles: ['OWNER'],
-    });
+    const access = await workspaceMembershipService.checkAccess({ workspaceId, userId });
 
-    if (!access) {
+    if (!access || access.membershipRole !== 'OWNER') {
         throw new AppError(
             ErrorCodes.AGREEMENT_ACCESS_DENIED,
             403,
@@ -28,11 +24,7 @@ const assertOwnership = async (workspaceId, userId) => {
 };
 
 const assertMembership = async (workspaceId, userId) => {
-    const access = await workspaceMembershipService.checkAccess({
-        workspaceId,
-        userId,
-    });
-
+    const access = await workspaceMembershipService.checkAccess({ workspaceId, userId });
     return !!access;
 };
 
@@ -50,6 +42,16 @@ const assertParticipant = async (agreement, userId) => {
 const validateTransition = (currentStatus, targetStatus) => {
     const allowed = VALID_TRANSITIONS[currentStatus];
     if (!allowed || !allowed.includes(targetStatus)) {
+        throw new AppError(
+            ErrorCodes.INVALID_AGREEMENT_TRANSITION,
+            409,
+            `Cannot transition from ${currentStatus} to ${targetStatus}`,
+        );
+    }
+};
+
+const assertAtomicTransition = (result, currentStatus, targetStatus) => {
+    if (!result) {
         throw new AppError(
             ErrorCodes.INVALID_AGREEMENT_TRANSITION,
             409,
@@ -144,7 +146,20 @@ export const agreementService = {
             throw new AppError(ErrorCodes.AGREEMENT_NOT_FOUND, 404, 'Agreement not found');
         }
 
-        if (agreement.status !== 'DRAFT') {
+        await assertOwnership(agreement.clientWorkspaceId, userId);
+
+        const effectiveStart = updates.startDate || agreement.startDate;
+        const effectiveEnd = updates.endDate || agreement.endDate;
+        if (new Date(effectiveEnd) < new Date(effectiveStart)) {
+            throw new AppError(
+                ErrorCodes.VALIDATION_ERROR,
+                400,
+                'endDate must not be earlier than startDate',
+            );
+        }
+
+        const result = await agreementRepository.updateDraft(agreementId, updates);
+        if (!result) {
             throw new AppError(
                 ErrorCodes.INVALID_AGREEMENT_TRANSITION,
                 409,
@@ -152,9 +167,7 @@ export const agreementService = {
             );
         }
 
-        await assertOwnership(agreement.clientWorkspaceId, userId);
-
-        return agreementRepository.updateById(agreementId, updates);
+        return result;
     },
 
     proposeAgreement: async ({ agreementId, userId }) => {
@@ -166,13 +179,15 @@ export const agreementService = {
         validateTransition(agreement.status, 'PROPOSED');
         await assertOwnership(agreement.clientWorkspaceId, userId);
 
-        // THE HUMAN FIX: Atomic status transition
-        return agreementRepository.updateAgreementStatus(
+        const result = await agreementRepository.updateAgreementStatus(
             agreementId,
-            agreement.status, // Current status check
-            'PROPOSED', // New status
-            { proposedBy: userId, proposedAt: new Date() }, // Metadata
+            agreement.status,
+            'PROPOSED',
+            { proposedBy: userId, proposedAt: new Date() },
         );
+
+        assertAtomicTransition(result, agreement.status, 'PROPOSED');
+        return result;
     },
 
     acceptAgreement: async ({ agreementId, userId }) => {
@@ -184,11 +199,15 @@ export const agreementService = {
         validateTransition(agreement.status, 'ACTIVE');
         await assertOwnership(agreement.freelancerWorkspaceId, userId);
 
-        // THE HUMAN FIX: Atomic status transition
-        return agreementRepository.updateAgreementStatus(agreementId, agreement.status, 'ACTIVE', {
-            acceptedBy: userId,
-            acceptedAt: new Date(),
-        });
+        const result = await agreementRepository.updateAgreementStatus(
+            agreementId,
+            agreement.status,
+            'ACTIVE',
+            { acceptedBy: userId, acceptedAt: new Date() },
+        );
+
+        assertAtomicTransition(result, agreement.status, 'ACTIVE');
+        return result;
     },
 
     rejectAgreement: async ({ agreementId, userId }) => {
@@ -200,13 +219,15 @@ export const agreementService = {
         validateTransition(agreement.status, 'REJECTED');
         await assertOwnership(agreement.freelancerWorkspaceId, userId);
 
-        // THE HUMAN FIX: Atomic status transition
-        return agreementRepository.updateAgreementStatus(
+        const result = await agreementRepository.updateAgreementStatus(
             agreementId,
             agreement.status,
             'REJECTED',
             { rejectedBy: userId, rejectedAt: new Date() },
         );
+
+        assertAtomicTransition(result, agreement.status, 'REJECTED');
+        return result;
     },
 
     cancelAgreement: async ({ agreementId, userId }) => {
@@ -218,12 +239,14 @@ export const agreementService = {
         validateTransition(agreement.status, 'CANCELLED');
         await assertOwnership(agreement.clientWorkspaceId, userId);
 
-        // THE HUMAN FIX: Atomic status transition
-        return agreementRepository.updateAgreementStatus(
+        const result = await agreementRepository.updateAgreementStatus(
             agreementId,
             agreement.status,
             'CANCELLED',
             { cancelledBy: userId, cancelledAt: new Date() },
         );
+
+        assertAtomicTransition(result, agreement.status, 'CANCELLED');
+        return result;
     },
 };

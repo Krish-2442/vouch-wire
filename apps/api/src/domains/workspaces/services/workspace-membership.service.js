@@ -5,20 +5,14 @@ import { AppError } from '../../../shared/errors/app-error.js';
 import { ErrorCodes } from '../../../shared/errors/error-codes.js';
 
 export const workspaceMembershipService = {
-    checkAccess: async ({ workspaceId, userId, allowedRoles }) => {
+    checkAccess: async ({ workspaceId, userId }) => {
         const membership = await workspaceMembershipRepository.findActiveByWorkspaceAndUser(
             workspaceId,
             userId,
         );
 
         if (!membership) {
-            return false;
-        }
-
-        if (allowedRoles && allowedRoles.length > 0) {
-            if (!allowedRoles.includes(membership.membershipRole)) {
-                return false;
-            }
+            return null;
         }
 
         return {

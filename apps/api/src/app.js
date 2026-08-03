@@ -14,6 +14,7 @@ import systemRoutes from './domains/system/routes.js';
 import identityRoutes from './domains/identity/routes.js';
 import workspaceRoutes from './domains/workspaces/routes.js';
 import agreementRoutes from './domains/agreements/routes.js';
+import milestoneRoutes from './domains/milestones/routes.js';
 import { ErrorCodes } from './shared/errors/error-codes.js';
 import { AppError } from './shared/errors/app-error.js';
 
@@ -81,6 +82,7 @@ const createApp = () => {
     app.use('/api/v1/auth', identityRoutes);
     app.use('/api/v1/workspaces', workspaceRoutes);
     app.use('/api/v1/agreements', agreementRoutes);
+    app.use('/api/v1/milestones', milestoneRoutes);
 
     app.use(notFoundMiddleware);
     app.use(errorHandlerMiddleware);

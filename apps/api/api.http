@@ -78,3 +78,37 @@ Content-Type: application/json
 ### Workspaces - Remove Member
 DELETE http://localhost:4000/api/v1/workspaces/<workspace_id>/members/<membership_id>
 Authorization: Bearer <your_token>
+
+### Milestones - Create
+POST http://localhost:4000/api/v1/milestones/agreements/<agreement_id>
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "title": "Initial Deposit",
+  "description": "First 25% down payment",
+  "amountMinor": 250000,
+  "sequence": 1,
+  "dueDate": "2026-10-01"
+}
+
+### Milestones - List by Agreement
+GET http://localhost:4000/api/v1/milestones/agreements/<agreement_id>
+Authorization: Bearer <your_token>
+
+### Milestones - Get by ID
+GET http://localhost:4000/api/v1/milestones/<milestone_id>
+Authorization: Bearer <your_token>
+
+### Milestones - Update
+PATCH http://localhost:4000/api/v1/milestones/<milestone_id>
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "title": "Updated Deposit Name"
+}
+
+### Milestones - Delete
+DELETE http://localhost:4000/api/v1/milestones/<milestone_id>
+Authorization: Bearer <your_token>

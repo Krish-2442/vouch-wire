@@ -1,5 +1,4 @@
 import { WorkspaceMembership } from '../models/workspace-membership.model.js';
-import mongoose from 'mongoose';
 
 export const workspaceMembershipRepository = {
     create: async (data, session) => {
@@ -27,34 +26,6 @@ export const workspaceMembershipRepository = {
         return query.exec();
     },
 
-    findActiveByWorkspaceAndEmail: async (workspaceId, email) => {
-        const result = await WorkspaceMembership.aggregate([
-            {
-                $match: {
-                    workspaceId: new mongoose.Types.ObjectId(workspaceId),
-                    isActive: true,
-                },
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'userId',
-                    foreignField: '_id',
-                    as: 'user',
-                },
-            },
-            {
-                $unwind: '$user',
-            },
-            {
-                $match: {
-                    'user.email': email,
-                },
-            },
-        ]);
-        return result[0] || null;
-    },
-
     updateById: async (id, data, session = null) => {
         const query = WorkspaceMembership.findByIdAndUpdate(id, data, { new: true });
         if (session) {
@@ -64,98 +35,48 @@ export const workspaceMembershipRepository = {
     },
 
     findActiveByUserIdWithWorkspaces: async (userId, { skip = 0, limit = 10 } = {}) => {
-        return WorkspaceMembership.aggregate([
-            {
-                $match: {
-                    userId: new mongoose.Types.ObjectId(userId),
-                    isActive: true,
+        const memberships = await WorkspaceMembership.find({ userId, isActive: true })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('workspaceId', '_id name slug workspaceType isActive')
+            .lean();
+
+        return memberships
+            .filter((m) => m.workspaceId && m.workspaceId.isActive)
+            .map((m) => ({
+                membershipId: m._id,
+                membershipRole: m.membershipRole,
+                joinedAt: m.createdAt,
+                workspace: {
+                    id: m.workspaceId._id,
+                    name: m.workspaceId.name,
+                    slug: m.workspaceId.slug,
+                    workspaceType: m.workspaceId.workspaceType,
+                    isActive: m.workspaceId.isActive,
                 },
-            },
-            {
-                $sort: { createdAt: -1 },
-            },
-            {
-                $skip: skip,
-            },
-            {
-                $limit: limit,
-            },
-            {
-                $lookup: {
-                    from: 'workspaces',
-                    localField: 'workspaceId',
-                    foreignField: '_id',
-                    as: 'workspace',
-                },
-            },
-            {
-                $unwind: '$workspace',
-            },
-            {
-                $match: {
-                    'workspace.isActive': true,
-                },
-            },
-            {
-                $project: {
-                    _id: 0,
-                    membershipId: '$_id',
-                    membershipRole: 1,
-                    joinedAt: '$createdAt',
-                    workspace: {
-                        id: '$workspace._id',
-                        name: '$workspace.name',
-                        slug: '$workspace.slug',
-                        workspaceType: '$workspace.workspaceType',
-                        isActive: '$workspace.isActive',
-                    },
-                },
-            },
-        ]);
+            }));
     },
 
     findActiveMembersByWorkspaceId: async (workspaceId, { skip = 0, limit = 10 } = {}) => {
-        return WorkspaceMembership.aggregate([
-            {
-                $match: {
-                    workspaceId: new mongoose.Types.ObjectId(workspaceId),
-                    isActive: true,
-                },
+        const memberships = await WorkspaceMembership.find({ workspaceId, isActive: true })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('userId', '_id fullName email isActive')
+            .lean();
+
+        return memberships.map((m) => ({
+            _id: m._id,
+            membershipRole: m.membershipRole,
+            isActive: m.isActive,
+            createdAt: m.createdAt,
+            user: {
+                id: m.userId._id,
+                fullName: m.userId.fullName,
+                email: m.userId.email,
+                isActive: m.userId.isActive,
             },
-            {
-                $sort: { createdAt: -1 },
-            },
-            {
-                $skip: skip,
-            },
-            {
-                $limit: limit,
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'userId',
-                    foreignField: '_id',
-                    as: 'user',
-                },
-            },
-            {
-                $unwind: '$user',
-            },
-            {
-                $project: {
-                    _id: 1,
-                    membershipRole: 1,
-                    isActive: 1,
-                    createdAt: 1,
-                    user: {
-                        id: '$user._id',
-                        fullName: '$user.fullName',
-                        email: '$user.email',
-                        isActive: '$user.isActive',
-                    },
-                },
-            },
-        ]);
+        }));
     },
 };
