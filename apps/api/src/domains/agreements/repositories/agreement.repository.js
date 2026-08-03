@@ -19,15 +19,18 @@ export const agreementRepository = {
             .exec();
     },
 
-    updateById: async (id, data) => {
-        return Agreement.findByIdAndUpdate(id, data, { new: true }).exec();
+    updateDraft: async (id, data) => {
+        return Agreement.findOneAndUpdate({ _id: id, status: 'DRAFT' }, data, {
+            new: true,
+            runValidators: true,
+        }).exec();
     },
 
     updateAgreementStatus: async (agreementId, currentStatus, newStatus, metadata = {}) => {
         return Agreement.findOneAndUpdate(
             { _id: agreementId, status: currentStatus },
             { status: newStatus, ...metadata },
-            { new: true },
+            { new: true, runValidators: true },
         ).exec();
     },
 };

@@ -18,7 +18,7 @@
 ## Architecture
 
 ```
-server/src/
+apps/api/src/
 ├── domains/        Domain modules (system, future domains)
 │   └── <domain>/
 │       ├── controllers/
@@ -53,7 +53,7 @@ server/src/
 
 ### Docker (recommended)
 
-All commands run from the `server/` directory.
+All commands run from the `apps/api/` directory.
 
 ```bash
 # Start the full stack (MongoDB + replica set init + API)
@@ -139,6 +139,7 @@ npm test
 
 - The local single-node `rs0` replica set supports local transaction development only. It is **not** production high availability.
 - `node_modules/` is excluded from Git and Docker builds.
+- Milestones are currently in a DRAFT-only planning scope.
 
 ## Authentication & Testing
 

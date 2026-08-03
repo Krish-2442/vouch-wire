@@ -21,27 +21,44 @@ const getClientInfo = (req) => {
 };
 
 export const authController = {
-    register: async (req, res, next) => {
-        try {
-            const { user, accessToken, refreshToken } = await authService.register(
-                req.validated.body,
-                getClientInfo(req),
-            );
+    register: async (req, res) => {
+        const { user, accessToken, refreshToken } = await authService.register(
+            req.validated.body,
+            getClientInfo(req),
+        );
 
-            res.cookie(env.REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+        res.cookie(env.REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
 
-            return successResponse(res, { data: { user, accessToken }, statusCode: 201 });
-        } catch (error) {
-            next(error);
-        }
+        return successResponse(res, { data: { user, accessToken }, statusCode: 201 });
     },
 
-    login: async (req, res, next) => {
+    login: async (req, res) => {
+        const { email, password } = req.validated.body;
+        const { user, accessToken, refreshToken } = await authService.login(
+            email,
+            password,
+            getClientInfo(req),
+        );
+
+        res.cookie(env.REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+
+        return successResponse(res, { data: { user, accessToken } });
+    },
+
+    refresh: async (req, res) => {
+        const oldRefreshToken = req.cookies[env.REFRESH_COOKIE_NAME];
+
+        if (!oldRefreshToken) {
+            throw new AppError(
+                ErrorCodes.AUTHENTICATION_REQUIRED,
+                401,
+                'Refresh token is required',
+            );
+        }
+
         try {
-            const { email, password } = req.validated.body;
-            const { user, accessToken, refreshToken } = await authService.login(
-                email,
-                password,
+            const { user, accessToken, refreshToken } = await authService.rotate(
+                oldRefreshToken,
                 getClientInfo(req),
             );
 
@@ -49,67 +66,30 @@ export const authController = {
 
             return successResponse(res, { data: { user, accessToken } });
         } catch (error) {
-            next(error);
-        }
-    },
-
-    refresh: async (req, res, next) => {
-        try {
-            const oldRefreshToken = req.cookies[env.REFRESH_COOKIE_NAME];
-
-            if (!oldRefreshToken) {
-                throw new AppError(
-                    ErrorCodes.AUTHENTICATION_REQUIRED,
-                    401,
-                    'Refresh token is required',
-                );
-            }
-
-            try {
-                const { user, accessToken, refreshToken } = await authService.rotate(
-                    oldRefreshToken,
-                    getClientInfo(req),
-                );
-
-                res.cookie(env.REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
-
-                return successResponse(res, { data: { user, accessToken } });
-            } catch (error) {
-                res.clearCookie(env.REFRESH_COOKIE_NAME, {
-                    ...getCookieOptions(),
-                    maxAge: 0,
-                });
-                throw error;
-            }
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    logout: async (req, res, next) => {
-        try {
-            const refreshToken = req.cookies[env.REFRESH_COOKIE_NAME];
-
-            if (refreshToken) {
-                await authService.logout(refreshToken);
-            }
-
             res.clearCookie(env.REFRESH_COOKIE_NAME, {
                 ...getCookieOptions(),
                 maxAge: 0,
             });
-
-            res.status(204).end();
-        } catch (error) {
-            next(error);
+            throw error;
         }
     },
 
-    me: async (req, res, next) => {
-        try {
-            return successResponse(res, { data: { user: req.auth.user } });
-        } catch (error) {
-            next(error);
+    logout: async (req, res) => {
+        const refreshToken = req.cookies[env.REFRESH_COOKIE_NAME];
+
+        if (refreshToken) {
+            await authService.logout(refreshToken);
         }
+
+        res.clearCookie(env.REFRESH_COOKIE_NAME, {
+            ...getCookieOptions(),
+            maxAge: 0,
+        });
+
+        res.status(204).end();
+    },
+
+    me: async (req, res) => {
+        return successResponse(res, { data: { user: req.auth.user } });
     },
 };
