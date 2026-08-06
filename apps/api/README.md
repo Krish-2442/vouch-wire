@@ -2,32 +2,70 @@
 
 **VouchWire** is an audit-ready contract-to-cash workspace. This backend serves the API layer built with Node.js, Express.js, and MongoDB.
 
-## Current Scope — Chunk 1 & 2
+## Current Scope
 
-- Express application with Helmet, CORS, rate limiting, and structured Pino logging
+- Express 5 application with Helmet, CORS, rate limiting, and structured Pino logging
 - MongoDB connection with replica-set topology validation
 - System health endpoints (`/live` and `/ready`)
-- Zod-based environment validation
+- Zod-based environment and request validation
 - Global error handling with structured JSON envelopes
 - Docker Compose stack with single-node MongoDB replica set
-- Identity domain with User and RefreshSession models
-- JWT-based authentication (access/refresh tokens)
-- Secure, strict Refresh Token Rotation with replay detection via MongoDB transactions
-- Role-based Access Control (RBAC) middleware
+
+### Domains
+
+| Domain         | Description                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Identity**   | User registration, JWT authentication (access/refresh tokens), secure refresh token rotation with replay detection             |
+| **Workspaces** | CLIENT and FREELANCER workspaces with OWNER/MEMBER roles, transactional creation, member management                            |
+| **Agreements** | Contract lifecycle: DRAFT → PROPOSED → ACTIVE/REJECTED/CANCELLED, workspace ownership enforcement                              |
+| **Milestones** | Milestone planning on ACTIVE agreements: DRAFT → FUNDED → SUBMITTED → APPROVED, paginated listing, DRAFT-only editing/deletion |
+| **Finance**    | Simulated wallet top-ups, atomic milestone escrow funding, immutable double-entry ledger, idempotent mutations                 |
 
 ## Architecture
 
 ```
 apps/api/src/
-├── domains/        Domain modules (system, future domains)
-│   └── <domain>/
+├── domains/
+│   ├── agreements/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   ├── validators/
+│   │   └── routes.js
+│   ├── finance/
+│   │   ├── controllers/
+│   │   ├── middlewares/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   ├── validators/
+│   │   └── routes.js
+│   ├── identity/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   └── routes.js
+│   ├── milestones/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   ├── validators/
+│   │   └── routes.js
+│   ├── system/
+│   │   ├── controllers/
+│   │   └── routes.js
+│   └── workspaces/
 │       ├── controllers/
+│       ├── middlewares/
+│       ├── models/
+│       ├── repositories/
 │       ├── services/
-│       ├── models/          (future data-bearing domains)
-│       ├── repositories/    (future data-bearing domains)
-│       ├── validators/      (future data-bearing domains)
+│       ├── validators/
 │       └── routes.js
-└── shared/         Cross-cutting infrastructure
+└── shared/
     ├── config/
     ├── database/
     ├── errors/
@@ -39,8 +77,10 @@ apps/api/src/
 
 - Controllers handle HTTP only (`req`, `res`, status codes, service calls).
 - Services contain business and operational logic.
+- Repositories contain Mongoose persistence queries only.
+- Models contain schemas and indexes only.
+- Cross-domain communication uses services only (no direct model/repository imports).
 - Mongoose connection lives only in `src/shared/database/`.
-- Never call Mongoose directly from a controller.
 - No global `controllers/`, `services/`, `models/`, or `repositories/` folders.
 
 ## Prerequisites
@@ -53,7 +93,7 @@ apps/api/src/
 
 ### Docker (recommended)
 
-All commands run from the `apps/api/` directory.
+All commands run from the repository root.
 
 ```bash
 # Start the full stack (MongoDB + replica set init + API)
@@ -78,13 +118,13 @@ docker compose down
 cp .env.example .env
 
 # Install dependencies
-npm install
+npm ci
 
 # Start MongoDB replica set via Docker (if not already running)
 docker compose up -d mongodb mongo-rs-init
 
 # Start the API in watch mode
-npm run dev
+npm run dev --workspace=@vouchwire/api
 ```
 
 The native URI (`mongodb://localhost:27017/vouchwire?replicaSet=rs0&directConnection=true`) is for local development only.
@@ -119,39 +159,83 @@ curl http://localhost:4000/api/v1/system/health/live
 curl http://localhost:4000/api/v1/system/health/ready
 ```
 
+## Finance Domain
+
+### Endpoints
+
+| Method | Path                                                | Description                |
+| ------ | --------------------------------------------------- | -------------------------- |
+| `GET`  | `/api/v1/finance/wallets/:workspaceId?currency=USD` | Read wallet balance        |
+| `POST` | `/api/v1/finance/wallets/:workspaceId/top-ups`      | Simulated wallet top-up    |
+| `POST` | `/api/v1/finance/milestones/:milestoneId/fund`      | Fund milestone into escrow |
+
+### Simulated Top-Ups
+
+Top-ups simulate adding funds to a CLIENT workspace wallet without a real payment gateway. The `amountMinor` field represents the smallest currency unit (e.g., cents for USD). An `Idempotency-Key` header is required on every mutation request to prevent duplicate money movement.
+
+### Wallet Balances
+
+Each wallet tracks two balances per currency:
+
+- **`availableAmountMinor`** — funds available for milestone funding
+- **`escrowedAmountMinor`** — funds locked in funded milestones
+
+Reading a wallet for an unfunded currency returns a zero-balance representation without persisting a document.
+
+### Milestone Escrow Funding
+
+Funding a milestone atomically:
+
+1. Transitions the milestone from `DRAFT` to `FUNDED`
+2. Decreases the client wallet's `availableAmountMinor`
+3. Increases the client wallet's `escrowedAmountMinor`
+4. Creates two immutable ledger entries (`AVAILABLE_DEBIT` + `ESCROW_CREDIT`) sharing one `operationId`
+
+If the available balance is insufficient, the entire operation rolls back — the milestone stays `DRAFT`, the wallet is unchanged, and no ledger entries are created.
+
+If the accrued funding surpasses the ceiling (`contractAmountMinor`) allocated in the active agreement, an HTTP 409 `CONTRACT_AMOUNT_EXCEEDED` error is raised, aborting the process entirely.
+
+### Immutable Ledger
+
+Every monetary operation creates append-only ledger entries. Entries are never updated or deleted. A unique compound index on `{ workspaceId, operationType, idempotencyKey, entrySide }` prevents duplicate money movement at the database level.
+
+### Idempotency
+
+Both mutation endpoints (`top-ups` and `fund`) require an `Idempotency-Key` header:
+
+- Same key + same inputs → returns the original result without re-executing
+- Same key + different inputs → returns `IDEMPOTENCY_KEY_REUSED` (HTTP 409)
+
+### Next Chunk
+
+Escrow release to the freelancer wallet belongs to the next implementation chunk.
+
 ## Development Commands
 
 ```bash
 # Lint
-npm run lint
+npm run lint --workspace=@vouchwire/api
 
 # Format code
-npm run format
+npm run format --workspace=@vouchwire/api
 
 # Verify formatting
-npm run format:check
+npm run format:check --workspace=@vouchwire/api
 
 # Run tests
-npm test
+npm test --workspace=@vouchwire/api
 ```
 
 ## Notes
 
 - The local single-node `rs0` replica set supports local transaction development only. It is **not** production high availability.
 - `node_modules/` is excluded from Git and Docker builds.
-- Milestones are currently in a DRAFT-only planning scope.
+- All monetary amounts are stored as positive safe integers in the smallest currency unit.
 
 ## Authentication & Testing
 
 - **Token Rotation**: Refresh tokens are securely rotated on each use.
 - **Replay Revocation**: A replay attack (using an already rotated token) revokes the entire token family.
 - **Cookie Behavior**: The refresh token is set in an `HttpOnly` cookie (`vw_refresh`). It requires `Secure` in production and clears on logout or rotation failure.
-- **Test Database Behavior**: Auth integration tests explicitly connect to a dedicated test database (`vouchwire-test`) which cleans up collections between tests.
+- **Test Database Behavior**: Integration tests connect to a dedicated test database (`vouchwire-test`) which cleans up collections between tests.
 - **Health Checks**: Health tests run without connecting to the database.
-
-## Workspaces (Chunk 4)
-
-- **Creation**: Workspaces can only be created by `CLIENT` or `FREELANCER` roles (not `ADMIN`). Creating a workspace atomically creates the workspace and the initial `OWNER` membership in a MongoDB transaction.
-- **Roles**: Memberships are strictly `OWNER` or `MEMBER`. Owners can update workspace names and manage members.
-- **RBAC**: Access to endpoints under `/api/v1/workspaces/:workspaceId` is protected by `workspaceAccess(allowedRoles)` middleware.
-- **Isolation**: Users cannot see or enumerate workspaces they do not belong to (returns a safe 404).
