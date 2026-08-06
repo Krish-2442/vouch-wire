@@ -31,7 +31,7 @@ POST http://localhost:4000/api/v1/auth/refresh
 
 ### Auth Current User (Replace Token)
 GET http://localhost:4000/api/v1/auth/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTZhZTRlYjZlZDQ2MmZhY2U3MWNhNGQiLCJyb2xlIjoiQ0xJRU5UIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc4NTM5MTA3OCwiZXhwIjoxNzg1MzkxOTc4LCJhdWQiOiJ2b3VjaHdpcmUtY2xpZW50IiwiaXNzIjoidm91Y2h3aXJlIn0.u_N-SnTkCpQHkCyD0H7kvoMiVC2a_dS8hz8H7WC89eA
+Authorization: Bearer <your_token>
 
 ### Auth Logout
 POST http://localhost:4000/api/v1/auth/logout
@@ -79,6 +79,22 @@ Content-Type: application/json
 DELETE http://localhost:4000/api/v1/workspaces/<workspace_id>/members/<membership_id>
 Authorization: Bearer <your_token>
 
+### Agreements - Create
+POST http://localhost:4000/api/v1/agreements
+Authorization: Bearer <your_token>
+Content-Type: application/json
+
+{
+  "clientWorkspaceId": "<client_workspace_id>",
+  "freelancerWorkspaceId": "<freelancer_workspace_id>",
+  "title": "Website Redesign",
+  "scope": "Full redesign of company website",
+  "currency": "USD",
+  "contractAmountMinor": 500000,
+  "startDate": "2026-09-01",
+  "endDate": "2026-12-01"
+}
+
 ### Milestones - Create
 POST http://localhost:4000/api/v1/milestones/agreements/<agreement_id>
 Authorization: Bearer <your_token>
@@ -92,8 +108,8 @@ Content-Type: application/json
   "dueDate": "2026-10-01"
 }
 
-### Milestones - List by Agreement
-GET http://localhost:4000/api/v1/milestones/agreements/<agreement_id>
+### Milestones - List by Agreement (with pagination)
+GET http://localhost:4000/api/v1/milestones/agreements/<agreement_id>?page=1&limit=10
 Authorization: Bearer <your_token>
 
 ### Milestones - Get by ID
@@ -112,3 +128,23 @@ Content-Type: application/json
 ### Milestones - Delete
 DELETE http://localhost:4000/api/v1/milestones/<milestone_id>
 Authorization: Bearer <your_token>
+
+### Finance - Get Wallet
+GET http://localhost:4000/api/v1/finance/wallets/<workspace_id>?currency=USD
+Authorization: Bearer <your_token>
+
+### Finance - Simulated Top-Up
+POST http://localhost:4000/api/v1/finance/wallets/<workspace_id>/top-ups
+Authorization: Bearer <your_token>
+Content-Type: application/json
+Idempotency-Key: <unique_uuid>
+
+{
+  "currency": "USD",
+  "amountMinor": 500000
+}
+
+### Finance - Fund Milestone into Escrow
+POST http://localhost:4000/api/v1/finance/milestones/<milestone_id>/fund
+Authorization: Bearer <your_token>
+Idempotency-Key: <unique_uuid>

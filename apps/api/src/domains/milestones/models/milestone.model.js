@@ -51,6 +51,13 @@ const milestoneSchema = new mongoose.Schema(
             ref: 'User',
             required: true,
         },
+        fundedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        fundedAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,

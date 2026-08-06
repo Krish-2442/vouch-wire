@@ -102,6 +102,14 @@ describe('Milestones Endpoints', () => {
             });
     };
 
+    it('should include meta.requestId in every successful response', async () => {
+        const res = await createMilestone(clientOwnerToken, activeAgreementId);
+        expect(res.status).toBe(201);
+        expect(res.body.success).toBe(true);
+        expect(res.body.meta).toBeDefined();
+        expect(res.body.meta.requestId).toBeDefined();
+    });
+
     it('should allow client OWNER to create milestone on ACTIVE agreement', async () => {
         const res = await createMilestone(clientOwnerToken, activeAgreementId);
         expect(res.status).toBe(201);
@@ -142,7 +150,7 @@ describe('Milestones Endpoints', () => {
         expect(res.body.error.code).toBe('CONFLICT');
     });
 
-    it('should allow active members to read/list milestones', async () => {
+    it('should allow active members to read/list milestones with pagination metadata', async () => {
         await createMilestone(clientOwnerToken, activeAgreementId, { sequence: 1 });
         await createMilestone(clientOwnerToken, activeAgreementId, { sequence: 2 });
 
@@ -152,6 +160,10 @@ describe('Milestones Endpoints', () => {
 
         expect(listRes.status).toBe(200);
         expect(listRes.body.data.length).toBe(2);
+        expect(listRes.body.meta.pagination.total).toBe(2);
+        expect(listRes.body.meta.pagination.page).toBe(1);
+        expect(listRes.body.meta.pagination.limit).toBe(10);
+        expect(listRes.body.meta.requestId).toBeDefined();
 
         const milestoneId = listRes.body.data[0]._id;
         const getRes = await request(app)
@@ -160,9 +172,42 @@ describe('Milestones Endpoints', () => {
 
         expect(getRes.status).toBe(200);
         expect(getRes.body.data._id).toBe(milestoneId);
+        expect(getRes.body.meta.requestId).toBeDefined();
     });
 
-    it('should reject outsider from reading milestones', async () => {
+    it('should paginate milestone list correctly', async () => {
+        await createMilestone(clientOwnerToken, activeAgreementId, {
+            sequence: 1,
+            title: 'First',
+        });
+        await createMilestone(clientOwnerToken, activeAgreementId, {
+            sequence: 2,
+            title: 'Second',
+        });
+        await createMilestone(clientOwnerToken, activeAgreementId, {
+            sequence: 3,
+            title: 'Third',
+        });
+
+        const page1 = await request(app)
+            .get(`/api/v1/milestones/agreements/${activeAgreementId}?page=1&limit=2`)
+            .set('Authorization', `Bearer ${clientOwnerToken}`);
+
+        expect(page1.status).toBe(200);
+        expect(page1.body.data.length).toBe(2);
+        expect(page1.body.meta.pagination.total).toBe(3);
+        expect(page1.body.data[0].sequence).toBe(1);
+
+        const page2 = await request(app)
+            .get(`/api/v1/milestones/agreements/${activeAgreementId}?page=2&limit=2`)
+            .set('Authorization', `Bearer ${clientOwnerToken}`);
+
+        expect(page2.status).toBe(200);
+        expect(page2.body.data.length).toBe(1);
+        expect(page2.body.data[0].sequence).toBe(3);
+    });
+
+    it('should reject outsider from reading milestones (safe 404)', async () => {
         const createRes = await createMilestone(clientOwnerToken, activeAgreementId);
         const milestoneId = createRes.body.data._id;
 
@@ -174,11 +219,19 @@ describe('Milestones Endpoints', () => {
         expect(res.body.error.code).toBe('MILESTONE_NOT_FOUND');
     });
 
+    it('should reject outsider from listing milestones (safe 404)', async () => {
+        const res = await request(app)
+            .get(`/api/v1/milestones/agreements/${activeAgreementId}`)
+            .set('Authorization', `Bearer ${outsiderToken}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.error.code).toBe('MILESTONE_NOT_FOUND');
+    });
+
     it('should reject update if milestone is not in DRAFT status', async () => {
         const createRes = await createMilestone(clientOwnerToken, activeAgreementId);
         const milestoneId = createRes.body.data._id;
 
-        // Force transition to FUNDED directly in DB for testing
         const mongoose = (await import('mongoose')).default;
         const Milestone = mongoose.model('Milestone');
         await Milestone.findByIdAndUpdate(milestoneId, { status: 'FUNDED' });
@@ -219,6 +272,7 @@ describe('Milestones Endpoints', () => {
 
         expect(patchRes.status).toBe(200);
         expect(patchRes.body.data.title).toBe('Updated Milestone');
+        expect(patchRes.body.meta.requestId).toBeDefined();
     });
 
     it('should reject update with empty body', async () => {
@@ -249,5 +303,30 @@ describe('Milestones Endpoints', () => {
             .set('Authorization', `Bearer ${clientOwnerToken}`);
 
         expect(getRes.status).toBe(404);
+    });
+
+    it('should reject outsider from updating a milestone (safe 404)', async () => {
+        const createRes = await createMilestone(clientOwnerToken, activeAgreementId);
+        const milestoneId = createRes.body.data._id;
+
+        const patchRes = await request(app)
+            .patch(`/api/v1/milestones/${milestoneId}`)
+            .set('Authorization', `Bearer ${outsiderToken}`)
+            .send({ title: 'Hacked' });
+
+        expect(patchRes.status).toBe(404);
+        expect(patchRes.body.error.code).toBe('MILESTONE_NOT_FOUND');
+    });
+
+    it('should reject outsider from deleting a milestone (safe 404)', async () => {
+        const createRes = await createMilestone(clientOwnerToken, activeAgreementId);
+        const milestoneId = createRes.body.data._id;
+
+        const delRes = await request(app)
+            .delete(`/api/v1/milestones/${milestoneId}`)
+            .set('Authorization', `Bearer ${outsiderToken}`);
+
+        expect(delRes.status).toBe(404);
+        expect(delRes.body.error.code).toBe('MILESTONE_NOT_FOUND');
     });
 });
