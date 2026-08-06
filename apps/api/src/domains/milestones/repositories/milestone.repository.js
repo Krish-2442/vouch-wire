@@ -19,6 +19,10 @@ export const milestoneRepository = {
             .exec();
     },
 
+    countByAgreementId: async (agreementId) => {
+        return Milestone.countDocuments({ agreementId }).exec();
+    },
+
     updateDraft: async (id, data) => {
         return Milestone.findOneAndUpdate({ _id: id, status: 'DRAFT' }, data, {
             new: true,
@@ -28,5 +32,21 @@ export const milestoneRepository = {
 
     deleteDraft: async (id) => {
         return Milestone.findOneAndDelete({ _id: id, status: 'DRAFT' }).exec();
+    },
+
+    fundMilestone: async (milestoneId, { fundedBy, fundedAt }, session) => {
+        return Milestone.findOneAndUpdate(
+            { _id: milestoneId, status: 'DRAFT' },
+            { status: 'FUNDED', fundedBy, fundedAt },
+            { new: true, runValidators: true, session },
+        ).exec();
+    },
+
+    getCommittedAmount: async (agreementId, session) => {
+        const result = await Milestone.aggregate([
+            { $match: { agreementId, status: { $in: ['FUNDED', 'SUBMITTED', 'APPROVED'] } } },
+            { $group: { _id: null, total: { $sum: '$amountMinor' } } },
+        ]).session(session);
+        return result.length > 0 ? result[0].total : 0;
     },
 };

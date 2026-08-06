@@ -4,11 +4,11 @@ import { workspaceMembershipService } from '../../workspaces/services/workspace-
 import { AppError } from '../../../shared/errors/app-error.js';
 import { ErrorCodes } from '../../../shared/errors/error-codes.js';
 
-const verifyAgreementAccess = async (agreementId, userId, isReadingMilestone = false) => {
+const verifyAgreementAccess = async (agreementId, userId, maskAsNotFound = false) => {
     try {
         return await agreementService.getAgreement({ agreementId, userId });
     } catch (error) {
-        if (isReadingMilestone && error.code === ErrorCodes.AGREEMENT_NOT_FOUND) {
+        if (maskAsNotFound && error.code === ErrorCodes.AGREEMENT_NOT_FOUND) {
             throw new AppError(ErrorCodes.MILESTONE_NOT_FOUND, 404, 'Milestone not found');
         }
         throw error;
@@ -94,8 +94,19 @@ export const milestoneService = {
 
     listMilestones: async ({ agreementId, userId, page = 1, limit = 10 }) => {
         await verifyAgreementAccess(agreementId, userId, true);
+
         const skip = (page - 1) * limit;
-        return milestoneRepository.findByAgreementId(agreementId, { skip, limit });
+        const [milestones, total] = await Promise.all([
+            milestoneRepository.findByAgreementId(agreementId, { skip, limit }),
+            milestoneRepository.countByAgreementId(agreementId),
+        ]);
+
+        return {
+            milestones,
+            total,
+            page,
+            limit,
+        };
     },
 
     updateMilestone: async ({ milestoneId, userId, updates }) => {
@@ -104,7 +115,7 @@ export const milestoneService = {
             throw new AppError(ErrorCodes.MILESTONE_NOT_FOUND, 404, 'Milestone not found');
         }
 
-        const agreement = await verifyAgreementAccess(milestone.agreementId, userId);
+        const agreement = await verifyAgreementAccess(milestone.agreementId, userId, true);
         assertAgreementActive(agreement);
         await assertClientOwner(agreement, userId);
 
@@ -133,7 +144,7 @@ export const milestoneService = {
             throw new AppError(ErrorCodes.MILESTONE_NOT_FOUND, 404, 'Milestone not found');
         }
 
-        const agreement = await verifyAgreementAccess(milestone.agreementId, userId);
+        const agreement = await verifyAgreementAccess(milestone.agreementId, userId, true);
         assertAgreementActive(agreement);
         await assertClientOwner(agreement, userId);
 
@@ -145,5 +156,19 @@ export const milestoneService = {
                 'Milestone can only be deleted in DRAFT status',
             );
         }
+    },
+
+    markAsFunded: async ({ milestoneId, fundedBy, fundedAt, session }) => {
+        const result = await milestoneRepository.fundMilestone(
+            milestoneId,
+            { fundedBy, fundedAt },
+            session,
+        );
+
+        if (!result) {
+            throw new AppError(ErrorCodes.CONFLICT, 409, 'Milestone is no longer in DRAFT status');
+        }
+
+        return result;
     },
 };
