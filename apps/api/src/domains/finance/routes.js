@@ -29,4 +29,11 @@ router.post(
     financeController.fundMilestone,
 );
 
+router.post(
+    '/milestones/:milestoneId/approve-and-release',
+    requireIdempotencyKey,
+    validateRequest(financeValidator.approveAndRelease),
+    financeController.approveAndRelease,
+);
+
 export default router;

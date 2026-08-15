@@ -43,4 +43,23 @@ export const financeController = {
             statusCode: result.idempotent ? 200 : 201,
         });
     },
+
+    approveAndRelease: async (req, res) => {
+        const { escrowReleaseService } = await import('../services/escrow-release.service.js');
+        const result = await escrowReleaseService.approveAndRelease({
+            milestoneId: req.validated.params.milestoneId,
+            userId: req.auth.userId,
+            idempotencyKey: req.idempotencyKey,
+        });
+
+        return successResponse(res, {
+            data: {
+                milestone: result.milestone,
+                submission: result.submission,
+                clientWallet: result.clientWallet,
+                freelancerWallet: result.freelancerWallet,
+            },
+            statusCode: result.idempotent ? 200 : 201,
+        });
+    },
 };

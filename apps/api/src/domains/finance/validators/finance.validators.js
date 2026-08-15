@@ -51,4 +51,16 @@ export const financeValidator = {
             body: z.object({}).strict().optional(),
         })
         .strict(),
+
+    approveAndRelease: z
+        .object({
+            params: z
+                .object({
+                    milestoneId: z.string().regex(objectIdPattern, 'Invalid milestone ID format'),
+                })
+                .strict(),
+            query: z.object({}).strict().optional(),
+            body: z.object({}).strict().optional(),
+        })
+        .strict(),
 };
