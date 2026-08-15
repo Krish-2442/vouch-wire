@@ -58,6 +58,20 @@ const milestoneSchema = new mongoose.Schema(
         fundedAt: {
             type: Date,
         },
+        submittedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        submittedAt: {
+            type: Date,
+        },
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        approvedAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,
