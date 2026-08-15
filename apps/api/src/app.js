@@ -16,6 +16,7 @@ import workspaceRoutes from './domains/workspaces/routes.js';
 import agreementRoutes from './domains/agreements/routes.js';
 import milestoneRoutes from './domains/milestones/routes.js';
 import financeRoutes from './domains/finance/routes.js';
+import submissionRoutes from './domains/submissions/routes.js';
 import { ErrorCodes } from './shared/errors/error-codes.js';
 import { AppError } from './shared/errors/app-error.js';
 
@@ -85,6 +86,7 @@ const createApp = () => {
     app.use('/api/v1/agreements', agreementRoutes);
     app.use('/api/v1/milestones', milestoneRoutes);
     app.use('/api/v1/finance', financeRoutes);
+    app.use('/api/v1/submissions', submissionRoutes);
 
     app.use(notFoundMiddleware);
     app.use(errorHandlerMiddleware);
