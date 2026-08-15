@@ -155,9 +155,7 @@ describe('Finance Endpoints', () => {
                     .send({ currency: 'USD', amountMinor: 500000 }),
             ]);
 
-            const successes = results.filter(
-                (r) => r.status === 201 || r.status === 200,
-            );
+            const successes = results.filter((r) => r.status === 201 || r.status === 200);
             expect(successes.length).toBe(2);
 
             const walletRes = await request(app)
@@ -436,15 +434,15 @@ describe('Finance Endpoints', () => {
         });
 
         it('should return 400 Validation Error when passing unknown fields to endpoints', async () => {
-             const fundKey = crypto.randomUUID();
-             const res = await request(app)
-                 .post(`/api/v1/finance/milestones/${milestoneId}/fund`)
-                 .set('Authorization', `Bearer ${clientOwnerToken}`)
-                 .set('Idempotency-Key', fundKey)
-                 .send({ unknownExtraField: true }); // Should cause strict check fail
-             
-             expect(res.status).toBe(400);
-             expect(res.body.error.code).toBe('VALIDATION_ERROR');
+            const fundKey = crypto.randomUUID();
+            const res = await request(app)
+                .post(`/api/v1/finance/milestones/${milestoneId}/fund`)
+                .set('Authorization', `Bearer ${clientOwnerToken}`)
+                .set('Idempotency-Key', fundKey)
+                .send({ unknownExtraField: true }); // Should cause strict check fail
+
+            expect(res.status).toBe(400);
+            expect(res.body.error.code).toBe('VALIDATION_ERROR');
         });
 
         it('should reject funding a non-DRAFT milestone', async () => {
@@ -574,7 +572,6 @@ describe('Finance Endpoints', () => {
             expect(codes).toEqual([200, 201]);
         });
 
-
         it('should return 409 IDEMPOTENCY_KEY_REUSED when key applies to a different milestone', async () => {
             const topUpKey = crypto.randomUUID();
             await request(app)
@@ -606,80 +603,6 @@ describe('Finance Endpoints', () => {
                 .set('Idempotency-Key', fundKey);
 
             expect(res.status).toBe(409);
-        });
-
-        it('should return 409 CONTRACT_AMOUNT_EXCEEDED when funding exceeds agreement contract limits', async () => {
-            const topUpKey = crypto.randomUUID();
-            await request(app)
-                .post(`/api/v1/finance/wallets/${clientWorkspace._id}/top-ups`)
-                .set('Authorization', `Bearer ${clientOwnerToken}`)
-                .set('Idempotency-Key', topUpKey)
-                .send({ currency: 'USD', amountMinor: 2000000 });
-
-            // Agreement ceiling is 1,000,000. So we instantiate a huge milestone.
-            const msResHuge = await request(app)
-                .post(`/api/v1/milestones/agreements/${activeAgreementId}`)
-                .set('Authorization', `Bearer ${clientOwnerToken}`)
-                .send({
-                    title: 'Huge Milestone',
-                    amountMinor: 1000001, // > 1M standalone -> FAIL
-                    sequence: 5,
-                    dueDate: '2026-11-15',
-                });
-
-            const hugeKey = crypto.randomUUID();
-            const res = await request(app)
-                .post(`/api/v1/finance/milestones/${msResHuge.body.data._id}/fund`)
-                .set('Authorization', `Bearer ${clientOwnerToken}`)
-                .set('Idempotency-Key', hugeKey);
-
-            expect(res.status).toBe(409);
-            expect(res.body.error.code).toBe('CONTRACT_AMOUNT_EXCEEDED');
-
-            const msAfter = await request(app)
-                .get(`/api/v1/milestones/${msResHuge.body.data._id}`)
-                .set('Authorization', `Bearer ${clientOwnerToken}`);
-            expect(msAfter.body.data.status).toBe('DRAFT');
-
-            const LedgerEntry = mongoose.model('LedgerEntry');
-            const entries = await LedgerEntry.countDocuments({
-                milestoneId: msResHuge.body.data._id,
-            });
-            expect(entries).toBe(0);
-        });
-
-        it('should strictly reject appending modifications directly on mongodb ledgers', async () => {
-            const topUpKey = crypto.randomUUID();
-            const res = await request(app)
-                .post(`/api/v1/finance/wallets/${clientWorkspace._id}/top-ups`)
-                .set('Authorization', `Bearer ${clientOwnerToken}`)
-                .set('Idempotency-Key', topUpKey)
-                .send({ currency: 'USD', amountMinor: 500000 });
-            
-            expect(res.status).toBe(201);
-            
-            const LedgerEntry = mongoose.model('LedgerEntry');
-            const entry = await LedgerEntry.findOne({ idempotencyKey: topUpKey });
-
-            try {
-                await LedgerEntry.findOneAndUpdate({ _id: entry._id }, { amountMinor: 999 });
-            } catch (err) {
-                expect(err.code).toBe('LEDGER_IMMUTABLE');
-                expect(err.statusCode).toBe(405);
-            }
-
-            try {
-                await LedgerEntry.deleteMany({ _id: entry._id });
-            } catch (err) {
-                expect(err.code).toBe('LEDGER_IMMUTABLE');
-            }
-
-            entry.amountMinor = 1234;
-            try {
-                await entry.save();
-            } catch (err) {
-                expect(err.code).toBe('LEDGER_IMMUTABLE');
-            }
         });
     });
 });

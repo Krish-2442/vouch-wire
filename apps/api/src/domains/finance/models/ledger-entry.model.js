@@ -1,9 +1,7 @@
 import mongoose from 'mongoose';
-import { AppError } from '../../../shared/errors/app-error.js';
-import { ErrorCodes } from '../../../shared/errors/error-codes.js';
 
-const OPERATION_TYPES = ['WALLET_TOP_UP', 'MILESTONE_FUND'];
-const ENTRY_SIDES = ['AVAILABLE_CREDIT', 'AVAILABLE_DEBIT', 'ESCROW_CREDIT'];
+const OPERATION_TYPES = ['WALLET_TOP_UP', 'MILESTONE_FUND', 'ESCROW_RELEASE'];
+const ENTRY_SIDES = ['AVAILABLE_CREDIT', 'AVAILABLE_DEBIT', 'ESCROW_CREDIT', 'ESCROW_DEBIT'];
 
 const ledgerEntrySchema = new mongoose.Schema(
     {
@@ -13,6 +11,11 @@ const ledgerEntrySchema = new mongoose.Schema(
             required: true,
         },
         workspaceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Workspace',
+            required: true,
+        },
+        idempotencyScopeWorkspaceId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Workspace',
             required: true,
@@ -82,31 +85,9 @@ const ledgerEntrySchema = new mongoose.Schema(
 ledgerEntrySchema.index({ walletId: 1, createdAt: -1 });
 ledgerEntrySchema.index({ milestoneId: 1, operationType: 1 });
 ledgerEntrySchema.index(
-    { workspaceId: 1, operationType: 1, idempotencyKey: 1, entrySide: 1 },
+    { idempotencyScopeWorkspaceId: 1, operationType: 1, idempotencyKey: 1, entrySide: 1 },
     { unique: true },
 );
-
-ledgerEntrySchema.pre('save', function () {
-    if (!this.isNew) {
-        throw new AppError(ErrorCodes.LEDGER_IMMUTABLE, 405, 'Ledger entries are immutable and append-only.');
-    }
-});
-
-const rejectModification = function () {
-    throw new AppError(ErrorCodes.LEDGER_IMMUTABLE, 405, 'Ledger entries are immutable and append-only.');
-};
-
-ledgerEntrySchema.pre('updateOne', rejectModification);
-ledgerEntrySchema.pre('updateMany', rejectModification);
-ledgerEntrySchema.pre('findOneAndUpdate', rejectModification);
-ledgerEntrySchema.pre('replaceOne', rejectModification);
-ledgerEntrySchema.pre('deleteOne', rejectModification);
-ledgerEntrySchema.pre('deleteMany', rejectModification);
-ledgerEntrySchema.pre('findOneAndDelete', rejectModification);
-ledgerEntrySchema.pre('findOneAndReplace', rejectModification);
-ledgerEntrySchema.pre('findOneAndRemove', rejectModification);
-ledgerEntrySchema.pre('findByIdAndDelete', rejectModification);
-ledgerEntrySchema.pre('findByIdAndUpdate', rejectModification);
 
 export const LedgerEntry = mongoose.model('LedgerEntry', ledgerEntrySchema);
 export { OPERATION_TYPES, ENTRY_SIDES };

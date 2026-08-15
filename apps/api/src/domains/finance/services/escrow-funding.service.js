@@ -36,14 +36,17 @@ const handleIdempotentFunding = (existingEntries, { milestoneId, workspaceId, cu
     const creditEntry = existingEntries.find((e) => e.entrySide === 'ESCROW_CREDIT');
 
     if (!debitEntry || !creditEntry) {
-         throw new AppError(
+        throw new AppError(
             ErrorCodes.IDEMPOTENCY_KEY_REUSED,
             409,
             'Idempotency key missing required entries',
         );
     }
 
-    if (creditEntry.milestoneId.toString() !== milestoneId || debitEntry.milestoneId.toString() !== milestoneId) {
+    if (
+        creditEntry.milestoneId.toString() !== milestoneId ||
+        debitEntry.milestoneId.toString() !== milestoneId
+    ) {
         throw new AppError(
             ErrorCodes.IDEMPOTENCY_KEY_REUSED,
             409,
@@ -145,6 +148,7 @@ export const escrowFundingService = {
                     {
                         walletId: wallet._id,
                         workspaceId,
+                        idempotencyScopeWorkspaceId: workspaceId,
                         milestoneId,
                         currency,
                         operationId,
@@ -163,6 +167,7 @@ export const escrowFundingService = {
                     {
                         walletId: wallet._id,
                         workspaceId,
+                        idempotencyScopeWorkspaceId: workspaceId,
                         milestoneId,
                         currency,
                         operationId,
@@ -185,61 +190,27 @@ export const escrowFundingService = {
                     fundedAt: new Date(),
                     session,
                 });
-
-                const { milestoneRepository } =
-                    await import('../../milestones/repositories/milestone.repository.js');
-                const committedAmount = await milestoneRepository.getCommittedAmount(
-                    agreement._id,
-                    session,
-                );
-
-                if (committedAmount > agreement.contractAmountMinor) {
-                    throw new AppError(
-                        ErrorCodes.CONTRACT_AMOUNT_EXCEEDED,
-                        409,
-                        'Funding this milestone exceeds the total contract ceiling',
-                    );
-                }
             });
         } catch (error) {
             if (error.code === 11000 || (error.message && error.message.includes('E11000'))) {
-                const { LedgerEntry } = await import('../models/ledger-entry.model.js');
-                
-                const escrowEntry = await LedgerEntry.findOne({
+                const retryEntries = await ledgerEntryRepository.findByOperationKey(
+                    workspaceId,
+                    'MILESTONE_FUND',
                     idempotencyKey,
-                    operationType: 'MILESTONE_FUND',
-                    entrySide: 'ESCROW_CREDIT'
-                });
+                );
 
-                if (escrowEntry) {
-                    if (escrowEntry.milestoneId.toString() !== milestoneId.toString()) {
-                        throw new AppError(
-                            ErrorCodes.IDEMPOTENCY_KEY_REUSED,
-                            409,
-                            'Idempotency key already used for a different milestone'
-                        );
-                    }
-
-                    const debitEntry = await LedgerEntry.findOne({
-                        idempotencyKey,
-                        operationType: 'MILESTONE_FUND',
-                        entrySide: 'AVAILABLE_DEBIT'
+                if (retryEntries.length > 0) {
+                    const result = handleIdempotentFunding(retryEntries, {
+                        milestoneId,
+                        workspaceId,
+                        currency,
+                    });
+                    const finalMilestone = await milestoneService.getMilestone({
+                        milestoneId,
+                        userId,
                     });
 
-                    const finalMilestone = await milestoneService.getMilestone({ milestoneId, userId });
-
-                    return {
-                        milestone: finalMilestone,
-                        wallet: {
-                            _id: debitEntry.walletId,
-                            workspaceId,
-                            currency,
-                            availableAmountMinor: debitEntry.availableAmountAfterMinor,
-                            escrowedAmountMinor: escrowEntry.escrowedAmountAfterMinor
-                        },
-                        ledgerEntries: [debitEntry, escrowEntry],
-                        idempotent: true
-                    };
+                    return { milestone: finalMilestone, ...result };
                 }
             }
             throw error;

@@ -116,6 +116,7 @@ export const walletService = {
                     {
                         walletId: wallet._id,
                         workspaceId,
+                        idempotencyScopeWorkspaceId: workspaceId,
                         currency,
                         operationId,
                         operationType: 'WALLET_TOP_UP',
