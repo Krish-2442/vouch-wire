@@ -42,11 +42,19 @@ export const milestoneRepository = {
         ).exec();
     },
 
-    getCommittedAmount: async (agreementId, session) => {
-        const result = await Milestone.aggregate([
-            { $match: { agreementId, status: { $in: ['FUNDED', 'SUBMITTED', 'APPROVED'] } } },
-            { $group: { _id: null, total: { $sum: '$amountMinor' } } },
-        ]).session(session);
-        return result.length > 0 ? result[0].total : 0;
+    submitMilestone: async (milestoneId, { submittedBy, submittedAt }, session) => {
+        return Milestone.findOneAndUpdate(
+            { _id: milestoneId, status: 'FUNDED' },
+            { status: 'SUBMITTED', submittedBy, submittedAt },
+            { new: true, runValidators: true, session },
+        ).exec();
+    },
+
+    approveMilestone: async (milestoneId, { approvedBy, approvedAt }, session) => {
+        return Milestone.findOneAndUpdate(
+            { _id: milestoneId, status: 'SUBMITTED' },
+            { status: 'APPROVED', approvedBy, approvedAt },
+            { new: true, runValidators: true, session },
+        ).exec();
     },
 };

@@ -6,8 +6,8 @@ export const ledgerEntryRepository = {
         return entry;
     },
 
-    findByOperationKey: async (workspaceId, operationType, idempotencyKey) => {
-        return LedgerEntry.find({ workspaceId, operationType, idempotencyKey })
+    findByOperationKey: async (idempotencyScopeWorkspaceId, operationType, idempotencyKey) => {
+        return LedgerEntry.find({ idempotencyScopeWorkspaceId, operationType, idempotencyKey })
             .sort({ createdAt: 1 })
             .lean()
             .exec();

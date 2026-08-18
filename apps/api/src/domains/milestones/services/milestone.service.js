@@ -171,4 +171,40 @@ export const milestoneService = {
 
         return result;
     },
+
+    markAsSubmitted: async ({ milestoneId, submittedBy, submittedAt, session }) => {
+        const result = await milestoneRepository.submitMilestone(
+            milestoneId,
+            { submittedBy, submittedAt },
+            session,
+        );
+
+        if (!result) {
+            throw new AppError(
+                ErrorCodes.CONFLICT,
+                409,
+                'Milestone must be in FUNDED status to be submitted',
+            );
+        }
+
+        return result;
+    },
+
+    markAsApproved: async ({ milestoneId, approvedBy, approvedAt, session }) => {
+        const result = await milestoneRepository.approveMilestone(
+            milestoneId,
+            { approvedBy, approvedAt },
+            session,
+        );
+
+        if (!result) {
+            throw new AppError(
+                ErrorCodes.CONFLICT,
+                409,
+                'Milestone must be in SUBMITTED status to be approved',
+            );
+        }
+
+        return result;
+    },
 };

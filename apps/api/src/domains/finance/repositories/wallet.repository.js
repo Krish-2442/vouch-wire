@@ -8,7 +8,10 @@ export const walletRepository = {
     upsertCredit: async (workspaceId, currency, amountMinor, session) => {
         return Wallet.findOneAndUpdate(
             { workspaceId, currency },
-            { $inc: { availableAmountMinor: amountMinor } },
+            {
+                $inc: { availableAmountMinor: amountMinor },
+                $setOnInsert: { workspaceId, currency },
+            },
             { new: true, upsert: true, session },
         ).exec();
     },
@@ -20,6 +23,18 @@ export const walletRepository = {
                 $inc: {
                     availableAmountMinor: -amountMinor,
                     escrowedAmountMinor: amountMinor,
+                },
+            },
+            { new: true, session },
+        ).exec();
+    },
+
+    debitEscrow: async (workspaceId, currency, amountMinor, session) => {
+        return Wallet.findOneAndUpdate(
+            { workspaceId, currency, escrowedAmountMinor: { $gte: amountMinor } },
+            {
+                $inc: {
+                    escrowedAmountMinor: -amountMinor,
                 },
             },
             { new: true, session },

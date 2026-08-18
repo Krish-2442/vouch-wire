@@ -13,13 +13,14 @@
 
 ### Domains
 
-| Domain         | Description                                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Identity**   | User registration, JWT authentication (access/refresh tokens), secure refresh token rotation with replay detection             |
-| **Workspaces** | CLIENT and FREELANCER workspaces with OWNER/MEMBER roles, transactional creation, member management                            |
-| **Agreements** | Contract lifecycle: DRAFT → PROPOSED → ACTIVE/REJECTED/CANCELLED, workspace ownership enforcement                              |
-| **Milestones** | Milestone planning on ACTIVE agreements: DRAFT → FUNDED → SUBMITTED → APPROVED, paginated listing, DRAFT-only editing/deletion |
-| **Finance**    | Simulated wallet top-ups, atomic milestone escrow funding, immutable double-entry ledger, idempotent mutations                 |
+| Domain          | Description                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Identity**    | User registration, JWT authentication (access/refresh tokens), secure refresh token rotation with replay detection             |
+| **Workspaces**  | CLIENT and FREELANCER workspaces with OWNER/MEMBER roles, transactional creation, member management                            |
+| **Agreements**  | Contract lifecycle: DRAFT → PROPOSED → ACTIVE/REJECTED/CANCELLED, workspace ownership enforcement                              |
+| **Milestones**  | Milestone planning on ACTIVE agreements: DRAFT → FUNDED → SUBMITTED → APPROVED, paginated listing, DRAFT-only editing/deletion |
+| **Submissions** | Freelancer work submissions for FUNDED milestones, triggering client approval workflows                                        |
+| **Finance**     | Simulated wallet top-ups, atomic milestone escrow funding and release, immutable double-entry ledger, idempotent mutations     |
 
 ## Architecture
 
@@ -48,6 +49,13 @@ apps/api/src/
 │   │   ├── services/
 │   │   └── routes.js
 │   ├── milestones/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   ├── validators/
+│   │   └── routes.js
+│   ├── submissions/
 │   │   ├── controllers/
 │   │   ├── models/
 │   │   ├── repositories/
@@ -163,11 +171,14 @@ curl http://localhost:4000/api/v1/system/health/ready
 
 ### Endpoints
 
-| Method | Path                                                | Description                |
-| ------ | --------------------------------------------------- | -------------------------- |
-| `GET`  | `/api/v1/finance/wallets/:workspaceId?currency=USD` | Read wallet balance        |
-| `POST` | `/api/v1/finance/wallets/:workspaceId/top-ups`      | Simulated wallet top-up    |
-| `POST` | `/api/v1/finance/milestones/:milestoneId/fund`      | Fund milestone into escrow |
+| Method | Path                                                          | Description                               |
+| ------ | ------------------------------------------------------------- | ----------------------------------------- |
+| `GET`  | `/api/v1/finance/wallets/:workspaceId?currency=USD`           | Read wallet balance                       |
+| `POST` | `/api/v1/finance/wallets/:workspaceId/top-ups`                | Simulated wallet top-up                   |
+| `POST` | `/api/v1/finance/milestones/:milestoneId/fund`                | Fund milestone into escrow                |
+| `POST` | `/api/v1/finance/milestones/:milestoneId/approve-and-release` | Approve submitted work and release escrow |
+| `POST` | `/api/v1/submissions/milestones/:milestoneId`                 | Freelancer submits work                   |
+| `GET`  | `/api/v1/submissions/milestones/:milestoneId`                 | View submission                           |
 
 ### Simulated Top-Ups
 
@@ -193,7 +204,15 @@ Funding a milestone atomically:
 
 If the available balance is insufficient, the entire operation rolls back — the milestone stays `DRAFT`, the wallet is unchanged, and no ledger entries are created.
 
-If the accrued funding surpasses the ceiling (`contractAmountMinor`) allocated in the active agreement, an HTTP 409 `CONTRACT_AMOUNT_EXCEEDED` error is raised, aborting the process entirely.
+### Escrow Approval and Release
+
+Once a milestone is `SUBMITTED` via the Submissions domain, the client workspace OWNER can approve the work:
+
+1. Transitions the milestone from `SUBMITTED` to `APPROVED`
+2. Decreases the client wallet's `escrowedAmountMinor`
+3. Increases the freelancer wallet's `availableAmountMinor`
+4. Creates two immutable ledger entries (`ESCROW_DEBIT` + `AVAILABLE_CREDIT`) sharing one `operationId`
+5. Records the approval timestamp on the work submission.
 
 ### Immutable Ledger
 
@@ -205,10 +224,6 @@ Both mutation endpoints (`top-ups` and `fund`) require an `Idempotency-Key` head
 
 - Same key + same inputs → returns the original result without re-executing
 - Same key + different inputs → returns `IDEMPOTENCY_KEY_REUSED` (HTTP 409)
-
-### Next Chunk
-
-Escrow release to the freelancer wallet belongs to the next implementation chunk.
 
 ## Development Commands
 
